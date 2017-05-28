@@ -29,24 +29,50 @@ int MPI_Allgatherv(const void *sendbuf, int sendcount,
 
 */
 
+
 /*
  * Process 0:
  * - reads all parameters,
  * - broadcasts all configuration numbers,
  * - reads all stars into variable 'myStars'.
  */
-nstars_info_t readAndDistributeInput(int numProcesses, int myRank, const char * filenameGal, int * numStars, int galaxy) {
-  // TODO
+nstars_info_t readInput(int numProcesses, int myRank, const char * filenameGal,
+                                     int * numStars, float * initVelocities, float * mass, int galaxy) {
+  // HEAD
+  FILE * fp;
   nstars_info_t myStars;
-  if (myRank == 0) {
-    // read numStars, init velocities, masses
-    // MPI_Bcast
+
+  if (myRank != 0) {
+    myStars = initStars(0, galaxy, false);
+
+  } else { // process 0 reads from input
+    fp = fopen(filenameGal, "r");
+    if (fp == NULL) {
+        fprintf(stderr, "ERROR: file \"%s\" could not be opened!\n", filenameGal);
+        exit(1);
+    }
+    fscanf(fp, "%d", numStars);
+    fscanf(fp, "%f", &initVelocities[0]);
+    fscanf(fp, "%f", &initVelocities[1]);
+    fscanf(fp, "%f", mass);
+
     myStars = initStars((*numStars), galaxy, false);
     // read stars into myStars
-  } else {
-    myStars = initStars(0, galaxy, false);
+    for (int i = 0; i < (*numStars); i++) {
+      for (int dim = 0; dim < 2; dim++) {
+        fscanf(fp, "%f", &myStars.starsPositions[dim][i]);
+      }
+    }
+    fclose(fp);
   }
+
   return myStars;
+}
+
+void distributeConfiguration(int numProcesses, int myRank, const char * filenameGal,
+                                     int * numStars, float * initVelocities, float * mass, int galaxy) {
+  // TODO
+  // HEAD
 }
 
 void exchangeCountData(int numProcesses, int myRank, int * countOutData, int * countInData) {
@@ -101,6 +127,8 @@ int main(int argc, char * argv[]) {
   nstars_info_t myStars[2];
   nstars_info_t myNewStars[2];
   nstars_info_t allStars[2];
+  float initVelocities[2][2]; // [galaxy][x, y]
+  float masses[2];
 
   // coordinates
   float minPosition[2];
@@ -143,7 +171,12 @@ int main(int argc, char * argv[]) {
 
   galaxy = 0;
 
-  myStars[galaxy] = readAndDistributeInput(numProcesses, myRank, filenameGal[galaxy], &numStars[galaxy], galaxy);
+  myStars[galaxy] = readInput(numProcesses, myRank, filenameGal[galaxy],
+                                           &numStars[galaxy], &initVelocities[galaxy], &masses[galaxy], galaxy);
+  distributeConfiguration(numProcesses, myRank, filenameGal[galaxy],
+                                          &numStars[galaxy], &initVelocities[galaxy], &masses[galaxy], galaxy);
+  // HEAD
+
   // now process 0 has all stars
 
   allStars[galaxy] = initStars(numStars[galaxy], galaxy, true);

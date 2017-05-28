@@ -114,6 +114,9 @@ int parseArguments(int argc, char * argv[], int * gridSize, char ** filenameGal,
     return 6;
   }
 
+  // TODO remove
+  printf("#%d #%d #%s #%s #%f #%f\n", gridSize[0], gridSize[1], filenameGal[0], filenameGal[1], *timeStep, *maxSimulationTime);
+
   return 0;
 }
 
@@ -125,9 +128,9 @@ nstars_info_t initStars(int n, int galaxy, bool onlyPositions) {
   ret.starsPositions[1] = malloc(n * sizeof(float));
   ret.onlyPositions = onlyPositions;
   if (!onlyPositions) {
-    for (int galaxy = 0; galaxy < 2; galaxy++) {
-      ret.starsVelocities[galaxy] = malloc(n * sizeof(float));
-      ret.starsAccelerations[galaxy] = malloc(n * sizeof(float));
+    for (int dim = 0; dim < 2; dim++) {
+      ret.starsVelocities[dim] = malloc(n * sizeof(float));
+      ret.starsAccelerations[dim] = malloc(n * sizeof(float));
     }
     ret.indices = malloc(n * sizeof(float));
   }
