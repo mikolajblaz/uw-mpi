@@ -26,16 +26,19 @@ typedef struct nstars_info_s {
     int n;
     int galaxy;
     bool onlyPositions;
-    int * indices;
     float * starsPositions[2];
     float * starsVelocities[2];
     float * starsAccelerations[2];
+    int * indices;
 } nstars_info_t;
 
 
 // helper functions
 void quicksort(int *A, int len);
-int parseArguments(int argc, char const * argv[], char * filenameGal1, char * filenameGal2);
+void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData);
+int parseArguments(int argc, char * argv[], char ** filenameGal1, char ** filenameGal2);
+nstars_info_t initStars(int n, int galaxy, bool onlyPositions);
+void freeStars(nstars_info_t stars);
 void initializeMpiStarType(MPI_Datatype * datatype);
 
 #endif /* _COLLISIONS_HELPERS_ */

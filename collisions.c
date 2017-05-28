@@ -9,6 +9,8 @@
 #include <sys/time.h>
 #include <mpi.h>
 #include <assert.h>
+#include <stdbool.h>
+#include "collisions-helpers.h"
 
 
 MPI_Datatype MPI_Star;
@@ -27,120 +29,147 @@ int MPI_Allgatherv(const void *sendbuf, int sendcount,
 
 */
 
-
-void readAndDistributeInput(int numProcesses, int myRank, const char * filenameGal1, const char * filenameGal2) {
+/*
+ * Process 0:
+ * - reads all parameters,
+ * - broadcasts all configuration numbers,
+ * - reads all stars into variable 'myStars'.
+ */
+nstars_info_t readAndDistributeInput(int numProcesses, int myRank, const char * filenameGal, int * numStars, int galaxy) {
   // TODO
+  nstars_info_t myStars;
   if (myRank == 0) {
-    // read
-  }
-
-  if (myRank == 0) {
-    // send
-
+    // read numStars, init velocities, masses
+    // MPI_Bcast
+    myStars = initStars((*numStars), galaxy, false);
+    // read stars into myStars
   } else {
-    myStars = initStars(0);
-    // receive
+    myStars = initStars(0, galaxy, false);
   }
-
+  return myStars;
 }
 
-int * exchangeCountData(int numProcesses, int myRank, int * countOutData) {
+void exchangeCountData(int numProcesses, int myRank, int * countOutData, int * countInData) {
   // TODO
-  int * countInData = malloc(numProcesses * sizeof(int));
   // MPI_AllToAll(countInData, countOutData)
-  return countInData;
 }
 
-void exchangeStars(int numProcesses, int myRank, nstars_info_t myStars) {
+nstars_info_t exchangeStars(int numProcesses, int myRank, nstars_info_t myStars) {
   // TODO
-  int * countOutData;
   nstars_info_t myNewStars;
 
-  countOutData = sortStars(&myStars);
-  exchangeCountData(numProcesses, myRank, countOutData);
+  int * countOutData = malloc(numProcesses * sizeof(int));
+  int * countInData = malloc(numProcesses * sizeof(int));
+
+  sortStars(numProcesses, &myStars, countOutData);
+  exchangeCountData(numProcesses, myRank, countOutData, countInData);
 
   // MPI_AllToAll(countInData, countOutData)
 
+  free(countInData);
+  free(countOutData);
+
+  // TODO
+  return myNewStars;
+}
+
+void gatherStars(int numProcesses, int myRank, const nstars_info_t myStars, nstars_info_t allStars) {
   // TODO
 }
 
-void gatherStars(int numProcesses, int myRank, const nstars_info_t myStars, nstars_info_t * allStars) {
+void computeNewPositions(nstars_info_t myStars) {
   // TODO
 }
 
-nstars_info_t initStars(int n, bool onlyPositions) {
-  nstars_info_t ret;
-  ret.n = n;
-  ret.starsPositions[0] = malloc(n * sizeof(float));
-  ret.starsPositions[1] = malloc(n * sizeof(float));
-  ret.onlyPositions = onlyPositions;
-  if (!onlyPositions) {
-
-  }
-  return ret;
+void computeNewAccelerationsAndVelocities(nstars_info_t myStars, nstars_info_t allStars) {
+  // TODO
 }
 
-void freeStars(nstars_info_t stars) {
-  free(stars.starsPositions[0]);
-  free(stars.starsPositions[1]);
+void outputPositions(int numProcesses, int myRank, nstars_info_t myStars, int galaxy, int iter) {
+  // TODO
+}
+
+void outputFinalPositions(int numProcesses, int myRank, nstars_info_t myStars, int galaxy) {
+  // TODO
 }
 
 
-int main(int argc, char const * argv[]) {
+int main(int argc, char * argv[]) {
   // variables describing whole system
   int numProcesses;
   int worldW;          // x dimension
   int worldH;          // y dimension
-  int numStars;
-
-  int iter = 0;
-  int iterNum;
-  float timeStep;
-  float maxSimulationTime;
+  int numStars[2];
+  int galaxy;
+  nstars_info_t allStars[2];
 
   // variables describing me
   int myRank;
   int myX;
   int myY;
-  nstars_info_t myStars;
-  nstars_info_t myNewStars;
-  nstars_info_t allStars;
+  nstars_info_t myStars[2];
+  nstars_info_t myNewStars[2];
+
+  // computation
+  int iter = 0;
+  int iterNum;
+  float timeStep;
+  float maxSimulationTime;
 
   // other
   int ret;
-  char * filenameGal1;
-  char * filenameGal2;
+  int verbose;
+  char * filenameGal[2];
+
 
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &numProcesses);
   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
 
-  ret = parseArguments(argc, argv);
+  ret = parseArguments(argc, argv, &filenameGal[0], &filenameGal[1]);
   if (ret != 0) {
     MPI_Finalize();
     return ret;
   }
 
-  initializeMpiStarType(&MPI_Star);
-  readAndDistributeInput(numProcesses, myRank, filenameGal1, filenameGal2);
+  galaxy = 0;
 
-  allStars = initStars(numStars);
+  // TODO remove
+  // initializeMpiStarType(&MPI_Star);
+
+  myStars[galaxy] = readAndDistributeInput(numProcesses, myRank, filenameGal[galaxy], &numStars[galaxy], galaxy);
+  // now process 0 has all stars
+
+  allStars[galaxy] = initStars(numStars[galaxy], galaxy, true);
+
+  // TODO: iteration 0
+  // allStars are ready in process 0
+  // need to compute only accelerations, not velocities
+  // if verbose: outputPositions
 
   iterNum = (int) (maxSimulationTime / timeStep);
   for (int iter = 0; iter < iterNum; iter++) {
-    // TODO
-    gatherStars(numProcesses, myRank, myStars, &allStars);
-    computeForcesAndMove();
+    myNewStars[galaxy] = exchangeStars(numProcesses, myRank, myStars[galaxy]);
+    freeStars(myStars[galaxy]);
+    myStars[galaxy] = myNewStars[galaxy];
 
-    if (iter < iterNum - 1) {  // not in last iteration
-      myNewStars = exchangeStars(myStars);
+    computeNewPositions(myStars[galaxy]);
+
+    if (iter < iterNum - 1) {  // in last iteration further computation is not necessary
+      gatherStars(numProcesses, myRank, myStars[galaxy], allStars[galaxy]);
+      computeNewAccelerationsAndVelocities(myStars[galaxy], allStars[galaxy]);
+      if (verbose) {
+        outputPositions(numProcesses, myRank, myStars[galaxy], galaxy, iter);
+      }
     }
-    freeStars(myStars);
-    myStars = myNewStars;
   }
 
-  freeStars(allStars);
+  outputFinalPositions(numProcesses, myRank, myStars[galaxy], galaxy);
+
+  freeStars(myStars[galaxy]);
+  freeStars(allStars[galaxy]);
   // TODO free memory
+
 
   MPI_Finalize();
   return 0;
