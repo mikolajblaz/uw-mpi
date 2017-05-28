@@ -8,7 +8,14 @@
 #include <stdbool.h>
 #include "collisions-helpers.h"
 
-#define OPTION_VERBOSE "--verbose"
+#define OPT_VERBOSE "-v"
+#define OPT_HOR "--hor"
+#define OPT_VER "--ver"
+#define OPT_GAL1 "--gal1"
+#define OPT_GAL2 "--gal2"
+#define OPT_DELTA "--delta"
+#define OPT_TOTAL "--total"
+#define OPT_MAX 8
 // etc.
 
 void quicksort(int *A, int len) {
@@ -33,35 +40,81 @@ void quicksort(int *A, int len) {
   quicksort(A + i, len - i);
 }
 
-void printUsage(char * filename) {
-  // TODO
+void printUsage(char * progName) {
+  fprintf(stderr, "Usage:\n"
+    "    %s [-v] --hor <H> --ver <V> --gal1 <G1> --gal2 <G2> --delta <D> --total <T>\n"
+    "    (arguments order is not relevant)\n",
+    progName);
 }
 
-int parseArguments(int argc, char * argv[], char ** filenameGal1, char ** filenameGal2) {
-  // TODO
+int parseArguments(int argc, char * argv[], int * gridSize, char ** filenameGal,
+                   float * timeStep, float * maxSimulationTime, bool * verbose) {
   int ret = 0;
-  bool verbose;
-  if (argc < 2) {
-      fprintf(stderr, "ERROR: Too few arguments!\n");
-      ret = 1;
-  }
-  else {
-    int argIdx = 1;
-    if (argc == 3) {
-        if (strncmp(argv[argIdx], OPTION_VERBOSE, strlen(OPTION_VERBOSE)) != 0) {
-            fprintf(stderr, "ERROR: Unexpected option '%s'!\n", argv[argIdx]);
-            ret = 3;
+  * verbose = false;
+  bool argumentsAreSet[6];
+  size_t optind;
+
+  if (argc < 13) {
+    fprintf(stderr, "ERROR: Too few arguments!\n");
+    ret = 1;
+  } else if (argc > 14) {
+    fprintf(stderr, "ERROR: Too many arguments!\n");
+    ret = 2;
+  } else {
+    for (optind = 1; optind < argc && argv[optind][0] == '-'; optind++) {
+      if (strncmp(argv[optind], OPT_VERBOSE, OPT_MAX) == 0) {
+        * verbose = true;
+      } else if (optind + 1 >= argc) {
+        fprintf(stderr, "ERROR: No argument for option '%s'!\n", argv[optind]);
+        ret = 3;
+      } else {  // another argument is waiting - OK
+        if (strncmp(argv[optind], OPT_HOR, OPT_MAX) == 0) {
+          argumentsAreSet[0] = true;
+          gridSize[0] = atof(argv[++optind]);
+        } else if (strncmp(argv[optind], OPT_VER, OPT_MAX) == 0) {
+          argumentsAreSet[1] = true;
+          gridSize[1] = atof(argv[++optind]);
+        } else if (strncmp(argv[optind], OPT_GAL1, OPT_MAX) == 0) {
+          argumentsAreSet[2] = true;
+          filenameGal[0] = argv[++optind];
+        } else if (strncmp(argv[optind], OPT_GAL2, OPT_MAX) == 0) {
+          argumentsAreSet[3] = true;
+          filenameGal[1] = argv[++optind];
+        } else if (strncmp(argv[optind], OPT_DELTA, OPT_MAX) == 0) {
+          argumentsAreSet[4] = true;
+          *timeStep = atof(argv[++optind]);
+        } else if (strncmp(argv[optind], OPT_TOTAL, OPT_MAX) == 0) {
+          argumentsAreSet[5] = true;
+          *maxSimulationTime = atof(argv[++optind]);
+        } else {
+          fprintf(stderr, "ERROR: Unexpected option '%s'!\n", argv[optind]);
+          ret = 4;
         }
-        verbose = true;
-        ++argIdx;
+      }
     }
-    // numPointsPerDimension = atoi(argv[argIdx]);
   }
+
   if (ret != 0) {
     printUsage(argv[0]);
-    MPI_Finalize();
+    return ret;
   }
-  return ret;
+
+  // check correctness
+  for (int i = 0; i < 6; i++) {
+    if (argumentsAreSet[i] == false) {
+      fprintf(stderr, "ERROR: some required arguments not passed!\n");
+      printUsage(argv[0]);
+      return 5;
+    }
+  }
+
+  if (gridSize[0] <= 0 || gridSize[1] <= 0) {
+    fprintf(stderr, "ERROR: grid sizes must be positive!\n");
+    printUsage(argv[0]);
+    return 6;
+  }
+
+  return 0;
 }
 
 nstars_info_t initStars(int n, int galaxy, bool onlyPositions) {
@@ -96,17 +149,3 @@ void freeStars(nstars_info_t stars) {
 void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData) {
   // TODO
 }
-
-// TODO remove
-// void initializeMpiStarType(MPI_Datatype * datatype) {
-//   MPI_Datatype type[3] = { MPI_INT, MPI_BOOL, MPI_FLOAT };
-//   int blocklen[3] = { 1, 1, 4 };
-//   MPI_Aint disp[3];
-//   star_t starExample;
-//   disp[0] = &starExample.index - &starExample;
-//   disp[1] = &starExample.isInFirstGalaxy - &starExample;
-//   disp[2] = &starExample.positionX - &starExample;
-//
-//   MPI_Type_create_struct(3, blocklen, disp, type, datatype);
-//   MPI_Type_commit(datatype);
-// }

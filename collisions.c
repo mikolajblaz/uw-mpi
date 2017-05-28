@@ -95,20 +95,22 @@ void outputFinalPositions(int numProcesses, int myRank, nstars_info_t myStars, i
 
 
 int main(int argc, char * argv[]) {
-  // variables describing whole system
-  int numProcesses;
-  int worldW;          // x dimension
-  int worldH;          // y dimension
-  int numStars[2];
+  // stars
   int galaxy;
-  nstars_info_t allStars[2];
-
-  // variables describing me
-  int myRank;
-  int myX;
-  int myY;
+  int numStars[2];
   nstars_info_t myStars[2];
   nstars_info_t myNewStars[2];
+  nstars_info_t allStars[2];
+
+  // coordinates
+  float minPosition[2];
+  float maxPosition[2];
+  float worldSize[2];
+  float blockSize[2];
+  int gridSize[2]; // {width, height}
+  int myGridId[2];
+  int numProcesses; // numProcesses = gridSize[0] * gridSize[1]
+  int myRank;
 
   // computation
   int iter = 0;
@@ -118,7 +120,7 @@ int main(int argc, char * argv[]) {
 
   // other
   int ret;
-  int verbose;
+  bool verbose;
   char * filenameGal[2];
 
 
@@ -126,16 +128,20 @@ int main(int argc, char * argv[]) {
   MPI_Comm_size(MPI_COMM_WORLD, &numProcesses);
   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
 
-  ret = parseArguments(argc, argv, &filenameGal[0], &filenameGal[1]);
+  ret = parseArguments(argc, argv, gridSize, filenameGal, &timeStep, &maxSimulationTime, &verbose);
+  if (ret == 0 && numProcesses != gridSize[0] * gridSize[1]) {
+    fprintf(stderr, "ERROR: Number of active processes must be equal to (%d * %d)!\n", gridSize[0], gridSize[1]);
+    printUsage(argv[0]);
+    ret = 7;
+  }
   if (ret != 0) {
     MPI_Finalize();
     return ret;
   }
 
-  galaxy = 0;
+  // Here arguments are correct
 
-  // TODO remove
-  // initializeMpiStarType(&MPI_Star);
+  galaxy = 0;
 
   myStars[galaxy] = readAndDistributeInput(numProcesses, myRank, filenameGal[galaxy], &numStars[galaxy], galaxy);
   // now process 0 has all stars
