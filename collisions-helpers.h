@@ -10,7 +10,8 @@
 typedef struct nstars_info_s {
     int n;
     int galaxy;
-    bool onlyPositions;
+    bool withAccelerations;
+    bool withAllInfo;
     float * starsPositions[2];
     float * starsVelocities[2];
     float * starsAccelerations[2];
@@ -23,7 +24,7 @@ void quicksort(int *A, int len);
 void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData);
 int parseArguments(int argc, char * argv[], int * gridSize, char ** filenameGal,
                    float * timeStep, float * maxSimulationTime, bool * verbose);
-nstars_info_t initStars(int n, int galaxy, bool onlyPositions);
+nstars_info_t initStars(int n, int galaxy, bool withAccelerations, bool withAllInfo);
 void freeStars(nstars_info_t stars);
 void initializeMpiStarType(MPI_Datatype * datatype);
 

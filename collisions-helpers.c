@@ -120,17 +120,24 @@ int parseArguments(int argc, char * argv[], int * gridSize, char ** filenameGal,
   return 0;
 }
 
-nstars_info_t initStars(int n, int galaxy, bool onlyPositions) {
+
+
+nstars_info_t initStars(int n, int galaxy, bool withAccelerations, bool withAllInfo) {
   nstars_info_t ret;
   ret.n = n;
   ret.galaxy = galaxy;
   ret.starsPositions[0] = malloc(n * sizeof(float));
   ret.starsPositions[1] = malloc(n * sizeof(float));
-  ret.onlyPositions = onlyPositions;
-  if (!onlyPositions) {
+  ret.withAccelerations = withAccelerations;
+  ret.withAllInfo = withAllInfo;
+  if (withAccelerations) {
+    for (int dim = 0; dim < 2; dim++) {
+      ret.starsAccelerations[dim] = malloc(n * sizeof(float));
+    }
+  }
+  if (withAllInfo) {
     for (int dim = 0; dim < 2; dim++) {
       ret.starsVelocities[dim] = malloc(n * sizeof(float));
-      ret.starsAccelerations[dim] = malloc(n * sizeof(float));
     }
     ret.indices = malloc(n * sizeof(float));
   }
@@ -140,10 +147,14 @@ nstars_info_t initStars(int n, int galaxy, bool onlyPositions) {
 void freeStars(nstars_info_t stars) {
   free(stars.starsPositions[0]);
   free(stars.starsPositions[1]);
-  if (!stars.onlyPositions) {
-    for (int galaxy = 0; galaxy < 2; galaxy++) {
-      free(stars.starsVelocities[galaxy]);
-      free(stars.starsAccelerations[galaxy]);
+  if (stars.withAccelerations) {
+    for (int dim = 0; dim < 2; dim++) {
+      free(stars.starsAccelerations[dim]);
+    }
+  }
+  if (stars.withAllInfo) {
+    for (int dim = 0; dim < 2; dim++) {
+      free(stars.starsVelocities[dim]);
     }
     free(stars.indices);
   }
