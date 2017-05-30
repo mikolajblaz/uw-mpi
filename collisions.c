@@ -122,7 +122,59 @@ void checkConfig(int myRank, int * numStars, float (*initVelocities)[2], float *
   }
   printStars(myStars[0]);
   printStars(myStars[1]);
+}
 
+void computeWorldSize(int numProcesses, int myRank, int * gridSize, float * minPosition, float * maxPosition,
+                      float * worldSize, float * blockSize, int * myGridId, nstars_info_t * myStars) {
+  // calculate min and max position
+  int gal, dim;
+  float min, max, diffHalf;
+  float minMax[4];
+
+  // only process 0 computes min and max
+  if (myRank == 0) {
+    for (dim = 0; dim < 2; dim++) {
+      // TODO: czy istnieje >= 1 gwiazda
+      // min = myStars[0].starsPositions[dim][0];
+      // max = myStars[0].starsPositions[dim][0];
+      min = 100;
+      max = 0;
+      // TODO
+      // HEAD
+
+      // find min and max in both galaxies
+      for (gal = 0; gal < 2; gal++) {
+        countMinMax(myStars[gal].starsPositions[dim], myStars[gal].n, &min, &max);
+      }
+      printf("MinMax: %f %f \n", min, max);
+      diffHalf = (max - min) / 2;
+      minMax[dim] = min - diffHalf;
+      minMax[2 + dim] = max + diffHalf;
+      // these are expanded universe boundaries
+    }
+  }
+
+  // all processes receive min and max
+  MPI_Bcast(minMax, 4, MPI_FLOAT, 0, MPI_COMM_WORLD);
+
+  for (dim = 0; dim < 2; dim++) {
+    min = minMax[dim];
+    max = minMax[2 + dim];
+    minPosition[dim] = min;
+    maxPosition[dim] = max;
+    worldSize[dim] = max - min;
+    blockSize[dim] = (max - min) / gridSize[dim];
+  }
+  myGridId[0] = myRank % gridSize[0];
+  myGridId[1] = myRank / gridSize[1];
+  // 0 1 2 --> (0,0) (1,0) (2,0)
+  // 3 4 5 --> (0,1) (1,1) (2,1)
+
+  // TODO remove
+  for (int dim = 0; dim < 2; dim++) {
+    printf("$WORLD: P[%d][%d, %d]: dim: %d world from [%f] to [%f], size: [%f], blockSize: [%f]\n",
+      myRank, myGridId[0], myGridId[1], dim, minPosition[dim],  maxPosition[dim], worldSize[dim], blockSize[dim]);
+  }
 }
 
 void exchangeCountData(int numProcesses, int myRank, int * countOutData, int * countInData) {
@@ -201,6 +253,7 @@ int main(int argc, char * argv[]) {
   bool verbose;
   char * filenameGal[2];
 
+  /************************* INITIALIZATION ********************************/
 
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &numProcesses);
@@ -221,11 +274,22 @@ int main(int argc, char * argv[]) {
   galaxy = 0;
 
   readInput(numProcesses, myRank, filenameGal, numStars, initVelocities, masses, myStars);
+  // now everyone has filled and initialized: numStars, initVelocities, masses, myStars
+  // process 0 has all stars
+
   checkConfig(myRank, numStars, initVelocities, masses, myStars);
+  // TODO remove
 
-  // now process 0 has all stars
-
+  computeWorldSize(numProcesses, myRank, gridSize, minPosition, maxPosition, worldSize, blockSize, myGridId, myStars);
   allStars[galaxy] = initStars(numStars[galaxy], galaxy, false, false);
+
+
+  // now all processes know all parameters
+  // we are ready for computation
+
+
+  /************************* COMPUTATION ********************************/
+
 
   // TODO: iteration 0
   // allStars are ready in process 0
@@ -233,7 +297,7 @@ int main(int argc, char * argv[]) {
   // if verbose: outputPositions
 
   iterNum = (int) (maxSimulationTime / timeStep);
-  for (int iter = 0; iter < iterNum; iter++) {
+  for (iter = 0; iter < iterNum; iter++) {
     myNewStars[galaxy] = exchangeStars(numProcesses, myRank, myStars[galaxy]);
     freeStars(myStars[galaxy]);
     myStars[galaxy] = myNewStars[galaxy];

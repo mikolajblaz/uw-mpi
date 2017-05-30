@@ -18,6 +18,24 @@
 #define OPT_MAX 8
 // etc.
 
+// compute min and max, with min and max already initialized!
+void countMinMax(float * A, int size, float * min, float * max) {
+  float lmin, lmax, curr;
+  lmin = *min;
+  lmax = *max;
+
+  for (int i = 0; i < size; i++) {
+    curr = A[i];
+    if (curr < lmin)
+      lmin = curr;
+    if (curr > lmax)
+      lmax = curr;
+  }
+
+  *min = lmin;
+  *max = lmax;
+}
+
 void quicksort(int *A, int len) {
   if (len < 2) return;
 

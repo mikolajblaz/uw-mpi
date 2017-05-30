@@ -20,6 +20,7 @@ typedef struct nstars_info_s {
 
 
 // helper functions
+void countMinMax(float * A, int size, float * min, float * max);
 void quicksort(int *A, int len);
 void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData);
 int parseArguments(int argc, char * argv[], int * gridSize, char ** filenameGal,
