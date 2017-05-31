@@ -115,11 +115,13 @@ void printStars(nstars_info_t stars) {
 void checkConfig(int myRank, int * numStars, float (*initVelocities)[2], float * masses, nstars_info_t * myStars) {
   if (myRank > 1)
     return;
-
+    
+  #ifdef DEBUG
   for (int gal = 0; gal < 2; gal++) {
     printf("P[%d]: numStars[%d], v[%f, %f], m[%f]\n",
       myRank, numStars[gal], initVelocities[gal][0], initVelocities[gal][1], masses[gal]);
   }
+  #endif
   printStars(myStars[0]);
   printStars(myStars[1]);
 }
@@ -135,18 +137,16 @@ void computeWorldSize(int numProcesses, int myRank, int * gridSize, float * minP
   if (myRank == 0) {
     for (dim = 0; dim < 2; dim++) {
       // TODO: czy istnieje >= 1 gwiazda
-      // min = myStars[0].starsPositions[dim][0];
-      // max = myStars[0].starsPositions[dim][0];
-      min = 100;
-      max = 0;
-      // TODO
-      // HEAD
+      min = myStars[0].starsPositions[dim][0];
+      max = myStars[0].starsPositions[dim][0];
 
       // find min and max in both galaxies
       for (gal = 0; gal < 2; gal++) {
         countMinMax(myStars[gal].starsPositions[dim], myStars[gal].n, &min, &max);
       }
+      #ifdef DEBUG
       printf("MinMax: %f %f \n", min, max);
+      #endif
       diffHalf = (max - min) / 2;
       minMax[dim] = min - diffHalf;
       minMax[2 + dim] = max + diffHalf;
@@ -170,11 +170,13 @@ void computeWorldSize(int numProcesses, int myRank, int * gridSize, float * minP
   // 0 1 2 --> (0,0) (1,0) (2,0)
   // 3 4 5 --> (0,1) (1,1) (2,1)
 
+  #ifdef DEBUG
   // TODO remove
   for (int dim = 0; dim < 2; dim++) {
     printf("$WORLD: P[%d][%d, %d]: dim: %d world from [%f] to [%f], size: [%f], blockSize: [%f]\n",
       myRank, myGridId[0], myGridId[1], dim, minPosition[dim],  maxPosition[dim], worldSize[dim], blockSize[dim]);
   }
+  #endif
 }
 
 void exchangeCountData(int numProcesses, int myRank, int * countOutData, int * countInData) {
@@ -277,8 +279,10 @@ int main(int argc, char * argv[]) {
   // now everyone has filled and initialized: numStars, initVelocities, masses, myStars
   // process 0 has all stars
 
+  #ifdef DEBUG
   checkConfig(myRank, numStars, initVelocities, masses, myStars);
   // TODO remove
+  #endif
 
   computeWorldSize(numProcesses, myRank, gridSize, minPosition, maxPosition, worldSize, blockSize, myGridId, myStars);
   allStars[galaxy] = initStars(numStars[galaxy], galaxy, false, false);
@@ -290,6 +294,7 @@ int main(int argc, char * argv[]) {
 
   /************************* COMPUTATION ********************************/
 
+  // HEAD
 
   // TODO: iteration 0
   // allStars are ready in process 0
