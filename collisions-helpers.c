@@ -5,6 +5,7 @@
 #include <mpi.h>
 #include <assert.h>
 
+#include <math.h>
 #include <stdbool.h>
 #include "collisions-helpers.h"
 
@@ -138,7 +139,7 @@ int parseArguments(int argc, char * argv[], int * gridSize, char ** filenameGal,
   return 0;
 }
 
-
+/******************** STARS SPECIFIC FUNCTIONS ******************************/
 
 nstars_info_t initStars(int n, int galaxy, bool withAccelerations, bool withAllInfo) {
   nstars_info_t ret;
@@ -178,6 +179,58 @@ void freeStars(nstars_info_t stars) {
   }
 }
 
-void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData) {
-  // TODO
+
+// perform counting sort to sort stars
+void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, float * minPosition, float * blockSize, int gridSizeX) {
+  const int n = stars->n;
+  int i;
+  int who;
+  int * whoOwns = malloc(n * sizeof(int));
+  int * countPrefixSum = malloc(numProcesses * sizeof(int));
+
+  memset(countOutData, 0, numProcesses);
+  for (i = 0; i < n; i++) {
+    who = whoOwnsStarInRank(
+      stars->starsPositions[0][i],
+      stars->starsPositions[1][i],
+      minPosition[0],
+      minPosition[1],
+      blockSize[0],
+      blockSize[1],
+      gridSizeX
+    );
+    whoOwns[i] = who;
+    countOutData[who] += 1;
+  }
+
+  // TODO: send could (should!) be here
+  // count[i] += count[i-1]
+
+  countPrefixSum[0] = countOutData[0];
+  for (i = 1; i < numProcesses; i++) {
+    countPrefixSum[i] = countPrefixSum[i - 1] + countOutData[i];
+  }
+  // output[countPrefixSum[whoOwns[i]] - 1] = whoOwns[i];
+
+  nstars_info_t starsTmp = initStars(n, stars->galaxy, stars->withAccelerations, stars->withAllInfo);
+
+  int dest;
+  int dim;
+  for (i = 0; i < n; i++) {
+    dest = --countPrefixSum[whoOwns[i]];
+    for (dim = 0; dim < 2; dim++) {
+      starsTmp.starsPositions[dim][dest] = stars->starsPositions[dim][i];
+      starsTmp.starsAccelerations[dim][dest] = stars->starsAccelerations[dim][i];
+      starsTmp.starsVelocities[dim][dest] = stars->starsVelocities[dim][i];
+    }
+    starsTmp.indices[dest] = stars->indices[i];
+  }
+
+  free(countPrefixSum);
+  free(whoOwns);
+
+  freeStars(*stars);
+  *stars = starsTmp;
+  // TODO write explicitly
+  // stars->starsPositions[0] = starsTmp.starsPositions[0]    etc.
 }
