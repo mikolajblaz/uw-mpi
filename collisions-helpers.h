@@ -2,11 +2,15 @@
 #define _COLLISIONS_HELPERS_
 
 #define G 155893.597
+#define FILENAME_LENGTH 20
 
 // TODO
 #define PRINT_MSG_TAG 543
 #define MPI_BACK_MESSAGE_TAG 1
 #define MPI_FRONT_MESSAGE_TAG 2
+
+#define FAIL_IF_NULL(ptr) if ((ptr) == NULL) \
+  { fprintf(stderr, "ERROR [%s, line %d]: couldn't allocate memory!\n", __FILE__, __LINE__); exit(1); }
 
 // all information about stars velocities, acceleration and indices
 typedef struct nstars_info_s {
@@ -26,6 +30,7 @@ void countMinMax(float * A, int size, float * min, float * max);
 void quicksort(int *A, int len);
 int parseArguments(int argc, char * argv[], int * gridSize, char ** filenameGal,
                    float * timeStep, float * maxSimulationTime, bool * verbose);
+void writeStarsToFile(nstars_info_t stars, char * filename);
 
 // stars related functions
 nstars_info_t initStars(int n, int galaxy, bool withAccelerations, bool withAllInfo);

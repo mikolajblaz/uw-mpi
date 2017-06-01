@@ -194,7 +194,9 @@ nstars_info_t exchangeStars(int numProcesses, int myRank, nstars_info_t myStars,
   int sumInData;
 
   int * countOutData = malloc(numProcesses * sizeof(int));
+  FAIL_IF_NULL(countOutData);
   int * countInData = malloc(numProcesses * sizeof(int));
+  FAIL_IF_NULL(countInData);
 
   sortStars(numProcesses, &myStars, countOutData, minPosition, blockSize, gridSizeX);
   exchangeCountData(numProcesses, countOutData, countInData, &sumInData);
@@ -216,6 +218,7 @@ void gatherStars(int numProcesses, const nstars_info_t myStars, nstars_info_t al
   // TODO
   int n = myStars.n;
   int * countInData = malloc(numProcesses * sizeof(int));
+  FAIL_IF_NULL(countInData);
 
   MPI_Allgather(&n, 1, MPI_INT,
                 countInData, 1, MPI_INT, MPI_COMM_WORLD);
@@ -271,12 +274,15 @@ void computeNewAccelerationsAndVelocities(nstars_info_t myStars, nstars_info_t a
   // TODO
 }
 
-void outputPositions(int numProcesses, int myRank, nstars_info_t myStars, int galaxy, int iter) {
-  // TODO
+void outputPositions(nstars_info_t * myStars, int galaxy, int iter) {
+  char filename[FILENAME_LENGTH];
+  snprintf(filename, FILENAME_LENGTH, "res%d_%d.txt", galaxy + 1, iter);
+  writeStarsToFile(myStars[galaxy], filename);
 }
 
-void outputFinalPositions(int numProcesses, int myRank, nstars_info_t myStars, int galaxy) {
-  // TODO
+void outputFinalPositions(nstars_info_t * myStars) {
+  writeStarsToFile(myStars[0], "res1.txt");
+  writeStarsToFile(myStars[1], "res2.txt");
 }
 
 
@@ -356,6 +362,9 @@ int main(int argc, char * argv[]) {
   // need to compute only accelerations, not velocities
   // if verbose: outputPositions
 
+  int * p = NULL;
+  FAIL_IF_NULL(p);
+
   iterNum = (int) (maxSimulationTime / timeStep);
   for (iter = 0; iter < iterNum; iter++) {
     myStars[galaxy] = exchangeStars(numProcesses, myRank, myStars[galaxy], minPosition, blockSize, gridSize[0]);
@@ -367,12 +376,12 @@ int main(int argc, char * argv[]) {
       // TODO other galaxy
       computeNewAccelerationsAndVelocities(myStars[galaxy], allStars[galaxy], timeStep, masses[galaxy]);
       if (verbose) {
-        outputPositions(numProcesses, myRank, myStars[galaxy], galaxy, iter);
+        outputPositions(myStars, galaxy, iter);
       }
     }
   }
 
-  outputFinalPositions(numProcesses, myRank, myStars[galaxy], galaxy);
+  outputFinalPositions(myStars);
 
   freeStars(myStars[galaxy]);
   freeStars(allStars[galaxy]);

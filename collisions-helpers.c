@@ -146,19 +146,24 @@ nstars_info_t initStars(int n, int galaxy, bool withAccelerations, bool withAllI
   ret.n = n;
   ret.galaxy = galaxy;
   ret.starsPositions[0] = malloc(n * sizeof(float));
+  FAIL_IF_NULL(ret.starsPositions[0]);
   ret.starsPositions[1] = malloc(n * sizeof(float));
+  FAIL_IF_NULL(ret.starsPositions[1]);
   ret.withAccelerations = withAccelerations;
   ret.withAllInfo = withAllInfo;
   if (withAccelerations) {
     for (int dim = 0; dim < 2; dim++) {
       ret.starsAccelerations[dim] = malloc(n * sizeof(float));
+      FAIL_IF_NULL(ret.starsAccelerations[dim]);
     }
   }
   if (withAllInfo) {
     for (int dim = 0; dim < 2; dim++) {
       ret.starsVelocities[dim] = malloc(n * sizeof(float));
+      FAIL_IF_NULL(ret.starsVelocities[dim]);
     }
     ret.indices = malloc(n * sizeof(float));
+    FAIL_IF_NULL(ret.indices);
   }
   return ret;
 }
@@ -186,7 +191,9 @@ void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, floa
   int i;
   int who;
   int * whoOwns = malloc(n * sizeof(int));
+  FAIL_IF_NULL(whoOwns);
   int * countPrefixSum = malloc(numProcesses * sizeof(int));
+  FAIL_IF_NULL(countPrefixSum);
 
   memset(countOutData, 0, numProcesses);
   for (i = 0; i < n; i++) {
@@ -233,4 +240,19 @@ void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, floa
   *stars = starsTmp;
   // TODO write explicitly
   // stars->starsPositions[0] = starsTmp.starsPositions[0]    etc.
+}
+
+void writeStarsToFile(nstars_info_t stars, char * filename) {
+  int n = stars.n;
+  FILE * fp = fopen(filename, "w");
+  if (fp == NULL) {
+      fprintf(stderr, "ERROR: file \"%s\" could not be created!\n", filename);
+      exit(1);
+  }
+
+  for (int i = 0; i < n; i++) {
+    fprintf(fp, "%.1f %.1f\n", stars.starsPositions[0][i], stars.starsPositions[1][i]);
+  }
+
+  fclose(fp);
 }
