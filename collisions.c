@@ -121,12 +121,11 @@ void checkConfig(int myRank, int * numStars, float (*initVelocities)[2], float *
   if (myRank > 1)
     return;
 
-  #ifdef DEBUG
   for (int gal = 0; gal < 2; gal++) {
     printf("P[%d]: numStars[%d], v[%f, %f], m[%f]\n",
       myRank, numStars[gal], initVelocities[gal][0], initVelocities[gal][1], masses[gal]);
   }
-  #endif
+
   printStars(myStars[0]);
   printStars(myStars[1]);
 }
@@ -281,15 +280,19 @@ void computeNewAccelerationsAndVelocities(nstars_info_t myStars, nstars_info_t a
   // TODO
 }
 
-void outputPositions(nstars_info_t * myStars, int galaxy, int iter) {
-  char filename[FILENAME_LENGTH];
-  snprintf(filename, FILENAME_LENGTH, "res%d_%d.txt", galaxy + 1, iter);
-  writeStarsToFile(myStars[galaxy], filename);
+void outputPositions(int myRank, nstars_info_t * myStars, int galaxy, int iter) {
+  if (myRank == 0) {
+    char filename[FILENAME_LENGTH];
+    snprintf(filename, FILENAME_LENGTH, "res%d_%d.txt", galaxy + 1, iter);
+    writeStarsToFile(myStars[galaxy], filename);
+  }
 }
 
-void outputFinalPositions(nstars_info_t * myStars) {
-  writeStarsToFile(myStars[0], "res1.txt");
-  writeStarsToFile(myStars[1], "res2.txt");
+void outputFinalPositions(int myRank, nstars_info_t * myStars) {
+  if (myRank == 0) {
+    writeStarsToFile(myStars[0], "res1.txt");
+    writeStarsToFile(myStars[1], "res2.txt");
+  }
 }
 
 
@@ -369,8 +372,10 @@ int main(int argc, char * argv[]) {
   // need to compute only accelerations, not velocities
   // if verbose: outputPositions
 
+
   iterNum = (int) (maxSimulationTime / timeStep);
   for (iter = 0; iter < iterNum; iter++) {
+/*
     myStars[galaxy] = exchangeStars(numProcesses, myRank, myStars[galaxy], minPosition, blockSize, gridSize[0]);
 
     computeNewPositions(myStars[galaxy], timeStep);
@@ -379,13 +384,17 @@ int main(int argc, char * argv[]) {
       gatherStars(numProcesses, myStars[galaxy], allStars[galaxy]);
       // TODO other galaxy
       computeNewAccelerationsAndVelocities(myStars[galaxy], allStars[galaxy], timeStep, masses[galaxy]);
+*/
       if (verbose) {
-        outputPositions(myStars, galaxy, iter);
+        outputPositions(myRank, myStars, 0, iter);
+        outputPositions(myRank, myStars, 1, iter);
       }
+/*
     }
+*/
   }
 
-  outputFinalPositions(myStars);
+  outputFinalPositions(myRank, myStars);
 
   freeStars(myStars[galaxy]);
   freeStars(allStars[galaxy]);

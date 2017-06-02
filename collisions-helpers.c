@@ -133,8 +133,10 @@ int parseArguments(int argc, char * argv[], int * gridSize, char ** filenameGal,
     return 6;
   }
 
+  #ifdef DEBUG
   // TODO remove
   printf("#%d #%d #%s #%s #%f #%f\n", gridSize[0], gridSize[1], filenameGal[0], filenameGal[1], *timeStep, *maxSimulationTime);
+  #endif
 
   return 0;
 }
@@ -256,4 +258,39 @@ void writeStarsToFile(nstars_info_t stars, char * filename) {
   }
 
   fclose(fp);
+}
+
+void rankToGridId(int myRank, int * myGridId, int gridSizeX) {
+  // 0 1 2 --> (0,0) (1,0) (2,0)
+  // 3 4 5 --> (0,1) (1,1) (2,1)
+  myGridId[0] = myRank % gridSizeX;
+  myGridId[1] = myRank / gridSizeX;
+}
+
+
+// inline functions declared in collisions-helpers.h
+
+int gridIdToRank(int myGridIdX, int myGridIdY, int gridSizeX) {
+  return myGridIdY * gridSizeX + myGridIdX;
+}
+
+// make world a torus (in terms of positions) along 1 (some) dimension
+float cyclePosition(float pos, float minPos, float maxPos, float worldSize) {
+  // works for (pos < minPos) too!
+  return (pos > maxPos || pos < minPos) ? (pos - floor((pos - minPos) / worldSize) * worldSize) : pos;
+}
+
+// who owns star inside the world along 1 (some) dimension in grid ids
+int whoOwnsStarInGridId(float pos, float minPos, float blockSize) {
+  return (pos - minPos) / blockSize;
+}
+
+// who (rank) owns star
+int whoOwnsStarInRank(float positionX, float positionY, float minPositionX, float minPositionY,
+                             float blockSizeX, float blockSizeY, int gridSizeX) {
+  return gridIdToRank(
+    whoOwnsStarInGridId(positionX, minPositionX, blockSizeX),
+    whoOwnsStarInGridId(positionY, minPositionY, blockSizeY),
+    gridSizeX
+  );
 }

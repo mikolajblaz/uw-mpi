@@ -40,37 +40,19 @@ void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, floa
 
 
 // inline functions
-inline void rankToGridId(int myRank, int * myGridId, int gridSizeX) {
-  // 0 1 2 --> (0,0) (1,0) (2,0)
-  // 3 4 5 --> (0,1) (1,1) (2,1)
-  myGridId[0] = myRank % gridSizeX;
-  myGridId[1] = myRank / gridSizeX;
-}
+extern inline void rankToGridId(int myRank, int * myGridId, int gridSizeX);
 
-inline int gridIdToRank(int myGridIdX, int myGridIdY, int gridSizeX) {
-  return myGridIdY * gridSizeX + myGridIdX;
-}
+extern inline int gridIdToRank(int myGridIdX, int myGridIdY, int gridSizeX);
 
 // make world a torus (in terms of positions) along 1 (some) dimension
-inline float cyclePosition(float pos, float minPos, float maxPos, float worldSize) {
-  // works for (pos < minPos) too!
-  return (pos > maxPos || pos < minPos) ? (pos - floor((pos - minPos) / worldSize) * worldSize) : pos;
-}
+extern inline float cyclePosition(float pos, float minPos, float maxPos, float worldSize);
 
 // who owns star inside the world along 1 (some) dimension in grid ids
-inline int whoOwnsStarInGridId(float pos, float minPos, float blockSize) {
-  return (pos - minPos) / blockSize;
-}
+extern inline int whoOwnsStarInGridId(float pos, float minPos, float blockSize);
 
 // who (rank) owns star
-inline int whoOwnsStarInRank(float positionX, float positionY, float minPositionX, float minPositionY,
-                             float blockSizeX, float blockSizeY, int gridSizeX) {
-  return gridIdToRank(
-    whoOwnsStarInGridId(positionX, minPositionX, blockSizeX),
-    whoOwnsStarInGridId(positionY, minPositionY, blockSizeY),
-    gridSizeX
-  );
-}
+extern inline int whoOwnsStarInRank(float positionX, float positionY, float minPositionX, float minPositionY,
+                             float blockSizeX, float blockSizeY, int gridSizeX);
 
 
 #endif /* _COLLISIONS_HELPERS_ */
