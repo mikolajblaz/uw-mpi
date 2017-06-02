@@ -200,7 +200,7 @@ void exchangeCountData(int numProcesses, int * countOutData, int * countInData, 
   *sum = lsum;
 }
 
-calculateDisplacements(int * counts, int * disp, const int size) {
+void calculateDisplacements(int * counts, int * disp, const int size) {
   disp[0] = 0;
 	for (int i = 1; i < size; i++){
 		disp[i] = counts[i - 1] + disp[i - 1];
@@ -260,55 +260,76 @@ void gatherStars(int numProcesses, const nstars_info_t myStars, nstars_info_t al
                  allStars.stars, countInData, countInData, MPI_STAR, MPI_COMM_WORLD);
 }
 
-void computeNewPositions(nstars_info_t stars, float dt, float * minPosition, float * maxPosition, float * worldSize) {
-  int n = stars.n;
-  for (int i = 0; i < n; i++) {
-    stars.stars[i].position[0] += stars.stars[i].velocity[0] * dt + stars.stars[i].acceleration[0] * dt * dt / 2;
-    stars.stars[i].position[0] = cyclePosition(stars.stars[i].position[0], minPosition[0], maxPosition[0], worldSize[0]);
-    stars.stars[i].position[1] += stars.stars[i].velocity[1] * dt + stars.stars[i].acceleration[1] * dt * dt / 2;
-    stars.stars[i].position[1] = cyclePosition(stars.stars[i].position[1], minPosition[1], maxPosition[1], worldSize[1]);
-  }
-}
 
-void computeNewAccelerationsAndVelocities(nstars_info_t myStars, nstars_info_t allStars, float dt, const float otherMass) {
+void computeCoordinates(nstars_info_t myStars, nstars_info_t * allStars, float dt, float * masses, float * initVelocities,
+                        float * minPosition, float * maxPosition, float * worldSize) {
   int n = myStars.n;
-  int allN = allStars.n;
+  int allN;
   int i,j;
+  int gal;
+  int index;
   float x, y;
   float distX, distY;
   float dist3;
-  float newA[2];
-  const float GM = G * otherMass;
+  float newA[2][2];
+  const float GM[2] = {G * masses[0], G * masses[1]};
+  bool immobilize;
 
   for (i = 0; i < n; i++) {
-    newA[0] = 0;
-    newA[1] = 0;
     x = myStars.stars[i].position[0];
     y = myStars.stars[i].position[1];
+    index = myStars.stars[i].index;
+    immobilize = false;
 
-    for (j = 0; j < allN; j++) {
-      // TODO: if i != j
-      distX = allStars.stars[j].position[0] - x;
-      distY = allStars.stars[j].position[1] - y;
-      dist3 = distX * distX + distY * distY;
-      // TODO: if dist != 0
-      dist3 = dist3 * sqrt(dist3);  // r^3
+    for (gal = 0; gal < 2 && !immobilize; gal++) {
+      allN = allStars[gal].n;
+      newA[gal][0] = 0;
+      newA[gal][1] = 0;
+      for (j = 0; j < allN; j++) {
+        if (index == allStars[gal].stars[j].index)  // not with myself
+          continue;
 
-      newA[0] += distX / dist3;
-      newA[1] += distY / dist3;
+        distX = allStars[gal].stars[j].position[0] - x;
+        distY = allStars[gal].stars[j].position[1] - y;
+        dist3 = distX * distX + distY * distY;
+        // TODO: if dist != 0
+        if (dist3 == 0) {     // division by zero - danger!
+          immobilize = true;
+          break;
+        }
+        dist3 = dist3 * sqrt(dist3);  // r^3
+
+        newA[gal][0] += distX / dist3;
+        newA[gal][1] += distY / dist3;
+      }
+      newA[gal][0] *= GM[gal];    // proper units
+      newA[gal][1] *= GM[gal];
     }
-    newA[0] *= GM;
-    newA[1] *= GM;
+    newA[0][0] += newA[1][0];     // sum from both galaxies
+    newA[0][1] += newA[1][1];
 
-    myStars.stars[i].velocity[0] += (myStars.stars[i].acceleration[0] + newA[0]) * dt / 2;
-    myStars.stars[i].velocity[1] += (myStars.stars[i].acceleration[1] + newA[1]) * dt / 2;
-    myStars.stars[i].acceleration[0] = newA[0];
-    myStars.stars[i].acceleration[1] = newA[1];
-    // TODO what if F > FLOAT_MAX / 2
-    // TODO what to do with me?
+    if (newA[0][0] > MAX_NUM || newA[0][1] > MAX_NUM) {
+      immobilize = true;
+    }
+
+    if (!immobilize) {
+      myStars.stars[i].acceleration[0] = newA[0][0];
+      myStars.stars[i].acceleration[1] = newA[0][1];
+
+      if (initVelocities != NULL) {   // first iteration only
+        myStars.stars[i].velocity[0] = initVelocities[0];
+        myStars.stars[i].velocity[1] = initVelocities[1];
+      } else {
+        myStars.stars[i].velocity[0] += (myStars.stars[i].acceleration[0] + newA[0][0]) * dt / 2;
+        myStars.stars[i].velocity[1] += (myStars.stars[i].acceleration[1] + newA[0][1]) * dt / 2;
+      }
+
+      myStars.stars[i].position[0] += myStars.stars[i].velocity[0] * dt + newA[0][0] * dt * dt / 2;
+      myStars.stars[i].position[0] = cyclePosition(myStars.stars[i].position[0], minPosition[0], maxPosition[0], worldSize[0]);
+      myStars.stars[i].position[1] += myStars.stars[i].velocity[1] * dt + newA[0][1] * dt * dt / 2;
+      myStars.stars[i].position[1] = cyclePosition(myStars.stars[i].position[1], minPosition[1], maxPosition[1], worldSize[1]);
+    }
   }
-  // TODO subtract force from me
-  // TODO
 }
 
 void outputPositions(int myRank, nstars_info_t * myStars, int galaxy, int iter) {
@@ -399,7 +420,6 @@ int main(int argc, char * argv[]) {
 
   /************************* COMPUTATION ********************************/
 
-  // HEAD
   iter = 0;
   galaxy = 1;
   myStars[galaxy] = exchangeStars(numProcesses, myRank, myStars[galaxy], minPosition, blockSize, gridSize[0]);
@@ -410,30 +430,30 @@ int main(int argc, char * argv[]) {
   myStars[galaxy] = exchangeStars(numProcesses, myRank, myStars[galaxy], minPosition, blockSize, gridSize[0]);
   printStars(myStars[galaxy], myRank, iter);
 
+  // HEAD
+
+  // gatherStars
+
+  computeCoordinates(myStars[galaxy], allStars, timeStep, masses, initVelocities[galaxy], // TODO initV = NULL
+                    minPosition, maxPosition, worldSize);
+
   // TODO: iteration 0
   // allStars are ready in process 0
   // need to compute only accelerations, not velocities
   // if verbose: outputPositions
 
   iterNum = (int) (maxSimulationTime / timeStep);
-  for (iter = 0; iter < iterNum; iter++) {
+  for (iter = 1; iter < iterNum; iter++) {
+    if (verbose) {
+      outputPositions(myRank, myStars, 0, iter - 1);
+      outputPositions(myRank, myStars, 1, iter - 1);
+    }
 /*
     myStars[galaxy] = exchangeStars(numProcesses, myRank, myStars[galaxy], minPosition, blockSize, gridSize[0]);
-
-    computeNewPositions(myStars[galaxy], timeStep, minPosition, maxPosition, worldSize);
-
-    if (iter < iterNum - 1) {  // in last iteration further computation is not necessary
-      gatherStars(numProcesses, myStars[galaxy], allStars[galaxy]);
-      // TODO other galaxy
-      computeNewAccelerationsAndVelocities(myStars[galaxy], allStars[galaxy], timeStep, masses[galaxy]);
+    gatherStars
 */
-      if (verbose) {
-        outputPositions(myRank, myStars, 0, iter);
-        outputPositions(myRank, myStars, 1, iter);
-      }
-/*
-    }
-*/
+    computeCoordinates(myStars[galaxy], allStars, timeStep, masses, NULL,
+                      minPosition, maxPosition, worldSize);
 
   }
 

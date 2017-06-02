@@ -145,7 +145,7 @@ int parseArguments(int argc, char * argv[], int * gridSize, char ** filenameGal,
 
 void initializeMpiStarType(MPI_Datatype * datatype) {
   MPI_Datatype type[2] = { MPI_FLOAT, MPI_INT };
-  int blocklen[2] = { 6, 1 };
+  int blocklen[2] = { 8, 1 };
   MPI_Aint disp[2];
   star_t starExample;
   disp[0] = (void*) &starExample.position[0] - (void*) &starExample;
@@ -195,6 +195,7 @@ void printArrayS(char * name, int myRank, star_t * A, int size) {
 void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, float * minPosition, float * blockSize, int gridSizeX, int myRank) {
   // HEAD
   //memset(countOutData, 0, numProcesses * sizeof(int));
+  // TODO memeset
 
   for (int i = 0; i < numProcesses; i++) {
     countOutData[i] = 0;

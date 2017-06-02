@@ -1,8 +1,11 @@
 #ifndef _COLLISIONS_HELPERS_
 #define _COLLISIONS_HELPERS_
 
-#define G 155893.597
+#include <float.h>
+
+#define G (155893.597)
 #define FILENAME_LENGTH 20
+#define MAX_NUM (FLT_MAX / 2)
 
 // TODO
 #define PRINT_MSG_TAG 543
@@ -17,6 +20,7 @@ typedef struct star_s {
     float position[2];
     float velocity[2];
     float acceleration[2];
+    float newAcceleration[2];   // TODO remove
     int index;    // TODO: float?
 } star_t;
 
