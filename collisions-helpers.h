@@ -34,11 +34,14 @@ int parseArguments(int argc, char * argv[], int * gridSize, char ** filenameGal,
                    float * timeStep, float * maxSimulationTime, bool * verbose);
 void writeStarsToFile(nstars_info_t stars, char * filename);
 
+void printArray(char * name, int myRank, int * A, int size);
+void printArrayS(char * name, int myRank, star_t * A, int size);
+
 // stars related functions
 void initializeMpiStarType(MPI_Datatype * datatype);
 nstars_info_t initStars(int n, int galaxy);
-void freeStars(nstars_info_t stars);
-void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, float * minPosition, float * blockSize, int gridSizeX);
+void freeStars(nstars_info_t * stars);
+void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, float * minPosition, float * blockSize, int gridSizeX, int myRank);
 
 
 
@@ -54,8 +57,7 @@ extern inline float cyclePosition(float pos, float minPos, float maxPos, float w
 extern inline int whoOwnsStarInGridId(float pos, float minPos, float blockSize);
 
 // who (rank) owns star
-extern inline int whoOwnsStarInRank(float positionX, float positionY, float minPositionX, float minPositionY,
-                             float blockSizeX, float blockSizeY, int gridSizeX);
+int whoOwnsStarInRank(float * position, float * minPosition, float * blockSize, int gridSizeX);
 
 
 #endif /* _COLLISIONS_HELPERS_ */

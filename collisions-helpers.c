@@ -162,20 +162,48 @@ nstars_info_t initStars(int n, int galaxy) {
   nstars_info_t ret;
   ret.n = n;
   ret.galaxy = galaxy;
-  ret.stars = malloc(n * sizeof(star_t));
-  FAIL_IF_NULL(ret.stars);
+  if (n == 0) {
+    ret.stars = NULL;
+  } else {
+    ret.stars = malloc(n * sizeof(star_t));
+    FAIL_IF_NULL(ret.stars);
+  }
   return ret;
 }
 
-void freeStars(nstars_info_t stars) {
-  free(stars.stars);
+void freeStars(nstars_info_t * stars) {
+  free(stars->stars);
 }
 
 
+void printArray(char * name, int myRank, int * A, int size) {
+  printf("%s (proc: %d): [ ", name, myRank);
+  for (int i = 0; i < size; i++) {
+    printf("%d ", A[i]);
+  }
+  printf("]\n");
+}
+void printArrayS(char * name, int myRank, star_t * A, int size) {
+  printf("%s (proc: %d): [ ", name, myRank);
+  for (int i = 0; i < size; i++) {
+    printf("(%f,%f) ", A[i].position[0], A[i].position[1]);
+  }
+  printf("]\n");
+}
+
 // perform counting sort to sort stars
-void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, float * minPosition, float * blockSize, int gridSizeX) {
+void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, float * minPosition, float * blockSize, int gridSizeX, int myRank) {
   // HEAD
+  //memset(countOutData, 0, numProcesses * sizeof(int));
+
+  for (int i = 0; i < numProcesses; i++) {
+    countOutData[i] = 0;
+  }
+
   const int n = stars->n;
+  if (n == 0)
+    return;
+
   int i;
   int who;
   int * whoOwns = malloc(n * sizeof(int));
@@ -183,20 +211,22 @@ void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, floa
   int * countPrefixSum = malloc(numProcesses * sizeof(int));
   FAIL_IF_NULL(countPrefixSum);
 
-  memset(countOutData, 0, numProcesses);
   for (i = 0; i < n; i++) {
     who = whoOwnsStarInRank(
-      stars->stars[i].position[0],
-      stars->stars[i].position[1],
-      minPosition[0],
-      minPosition[1],
-      blockSize[0],
-      blockSize[1],
+      stars->stars[i].position,
+      minPosition,
+      blockSize,
       gridSizeX
     );
+    #ifdef DEBUG
+    assert(0 <= who && who < numProcesses);
+    #endif
+    printf("Who: %d\n", who);
     whoOwns[i] = who;
     countOutData[who] += 1;
   }
+
+  //printArray("countOutData", myRank, countOutData, numProcesses);
 
   // TODO: send could (should!) be here
   // count[i] += count[i-1]
@@ -207,21 +237,22 @@ void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, floa
   }
   // output[countPrefixSum[whoOwns[i]] - 1] = whoOwns[i];
 
-  nstars_info_t starsTmp = initStars(n, stars->galaxy);
+  //printArray("countPrefixSum", myRank, countPrefixSum, numProcesses);
+
+  star_t * starsTmp = malloc(n * sizeof(star_t));
+  FAIL_IF_NULL(starsTmp);
 
   int dest;
   for (i = 0; i < n; i++) {
     dest = --countPrefixSum[whoOwns[i]];
-    starsTmp.stars[dest] = stars->stars[i];
+    starsTmp[dest] = stars->stars[i];
   }
 
   free(countPrefixSum);
   free(whoOwns);
 
-  freeStars(*stars);
-  *stars = starsTmp;
-  // TODO write explicitly
-  // stars->starsPositions[0] = starsTmp.starsPositions[0]    etc.
+  freeStars(stars);
+  stars->stars = starsTmp;
 }
 
 void writeStarsToFile(nstars_info_t stars, char * filename) {
@@ -246,8 +277,8 @@ void writeStarsToFile(nstars_info_t stars, char * filename) {
 // inline functions declared in collisions-helpers.h
 
 void rankToGridId(int myRank, int * myGridId, int gridSizeX) {
-  // 0 1 2 --> (0,0) (1,0) (2,0)
   // 3 4 5 --> (0,1) (1,1) (2,1)
+  // 0 1 2 --> (0,0) (1,0) (2,0)
   myGridId[0] = myRank % gridSizeX;
   myGridId[1] = myRank / gridSizeX;
 }
@@ -268,11 +299,10 @@ int whoOwnsStarInGridId(float pos, float minPos, float blockSize) {
 }
 
 // who (rank) owns star
-int whoOwnsStarInRank(float positionX, float positionY, float minPositionX, float minPositionY,
-                             float blockSizeX, float blockSizeY, int gridSizeX) {
+int whoOwnsStarInRank(float * position, float * minPosition, float * blockSize, int gridSizeX) {
   return gridIdToRank(
-    whoOwnsStarInGridId(positionX, minPositionX, blockSizeX),
-    whoOwnsStarInGridId(positionY, minPositionY, blockSizeY),
+    whoOwnsStarInGridId(position[0], minPosition[0], blockSize[0]),
+    whoOwnsStarInGridId(position[1], minPosition[1], blockSize[1]),
     gridSizeX
   );
 }
