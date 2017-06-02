@@ -10,7 +10,7 @@
 #define MPI_FRONT_MESSAGE_TAG 2
 
 #define FAIL_IF_NULL(ptr) if ((ptr) == NULL) \
-  { fprintf(stderr, "ERROR [%s, line %d]: couldn't allocate memory!\n", __FILE__, __LINE__); exit(1); }
+  { fprintf(stderr, "ERROR [%s, line %d]: couldn't allocate memory!\n", __FILE__, __LINE__); MPI_Finalize(); exit(1); }
 
 // all information about stars velocities, acceleration and indices
 typedef struct nstars_info_s {

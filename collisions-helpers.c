@@ -247,6 +247,7 @@ void writeStarsToFile(nstars_info_t stars, char * filename) {
   FILE * fp = fopen(filename, "w");
   if (fp == NULL) {
       fprintf(stderr, "ERROR: file \"%s\" could not be created!\n", filename);
+      MPI_Finalize();
       exit(1);
   }
 

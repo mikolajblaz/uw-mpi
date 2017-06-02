@@ -67,6 +67,7 @@ void readInput(int numProcesses, int myRank, char ** filenameGal,
                                      int * numStars, float (*initVelocities)[2], float * mass, nstars_info_t * myStars) {
   FILE * fp[2];
   int galaxy;
+  int ret;
 
   if (myRank != 0) {
     distributeConfiguration(myRank, numStars, initVelocities, mass);
@@ -78,12 +79,15 @@ void readInput(int numProcesses, int myRank, char ** filenameGal,
       fp[galaxy] = fopen(filenameGal[galaxy], "r");
       if (fp[galaxy] == NULL) {
           fprintf(stderr, "ERROR: file \"%s\" could not be opened!\n", filenameGal[galaxy]);
+          MPI_Finalize();
           exit(1);
       }
-      fscanf(fp[galaxy], "%d", &numStars[galaxy]);
-      fscanf(fp[galaxy], "%f", &initVelocities[galaxy][0]);
-      fscanf(fp[galaxy], "%f", &initVelocities[galaxy][1]);
-      fscanf(fp[galaxy], "%f", &mass[galaxy]);
+      ret = fscanf(fp[galaxy], "%d %f %f %f", &numStars[galaxy], &initVelocities[galaxy][0], &initVelocities[galaxy][1], &mass[galaxy]);
+      if (ret != 4) {
+        fprintf(stderr, "ERROR while reading configuration parameters from input!\n");
+        MPI_Finalize();
+        exit(1);
+      }
     }
 
     distributeConfiguration(myRank, numStars, initVelocities, mass);
@@ -93,8 +97,11 @@ void readInput(int numProcesses, int myRank, char ** filenameGal,
     for (galaxy = 0; galaxy < 2; galaxy++) {
       myStars[galaxy] = initStars(numStars[galaxy], galaxy, true, true);
       for (int i = 0; i < numStars[galaxy]; i++) {
-        for (int dim = 0; dim < 2; dim++) {
-          fscanf(fp[galaxy], "%f", &myStars[galaxy].starsPositions[dim][i]);
+        ret = fscanf(fp[galaxy], "%f %f", &myStars[galaxy].starsPositions[0][i], &myStars[galaxy].starsPositions[1][i]);
+        if (ret != 2) {
+          fprintf(stderr, "ERROR while reading stars positions (line %d)!\n", i);
+          MPI_Finalize();
+          exit(1);
         }
       }
       fclose(fp[galaxy]);
@@ -361,9 +368,6 @@ int main(int argc, char * argv[]) {
   // allStars are ready in process 0
   // need to compute only accelerations, not velocities
   // if verbose: outputPositions
-
-  int * p = NULL;
-  FAIL_IF_NULL(p);
 
   iterNum = (int) (maxSimulationTime / timeStep);
   for (iter = 0; iter < iterNum; iter++) {
