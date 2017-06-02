@@ -110,11 +110,11 @@ void readInput(int numProcesses, int myRank, char ** filenameGal,
   }
 }
 
-void printStars(nstars_info_t stars, int myRank, int iter) {
-  int n = stars.n;
-  printf("STARS[%d] on proc [%d] in iter [%d]:\n", stars.galaxy, myRank, iter);
+void printStars(nstars_info_t * stars, int myRank, int iter) {
+  int n = stars->n;
+  printf("STARS[%d] on proc [%d] in iter [%d]:\n", stars->galaxy, myRank, iter);
   for (int i = 0; i < n; i++) {
-    printf(" %f %f\n", stars.stars[i].position[0], stars.stars[i].position[1]);
+    printf(" %f %f\n", stars->stars[i].position[0], stars->stars[i].position[1]);
   }
 }
 
@@ -127,8 +127,8 @@ void checkConfig(int myRank, int * numStars, float (*initVelocities)[2], float *
       myRank, numStars[gal], initVelocities[gal][0], initVelocities[gal][1], masses[gal]);
   }
 
-  printStars(myStars[0], myRank, 0);
-  printStars(myStars[1], myRank, 0);
+  printStars(&myStars[0], myRank, 0);
+  printStars(&myStars[1], myRank, 0);
 }
 
 void computeWorldSize(int numProcesses, int myRank, int * gridSize, float * minPosition, float * maxPosition,
@@ -207,8 +207,7 @@ void calculateDisplacements(int * counts, int * disp, const int size) {
 	}
 }
 
-nstars_info_t exchangeStars(int numProcesses, int myRank, nstars_info_t myStars, float * minPosition, float * blockSize, int gridSizeX) {
-  nstars_info_t myNewStars;
+void exchangeStars(int numProcesses, int myRank, nstars_info_t * myStars, float * minPosition, float * blockSize, int gridSizeX) {
   int sumInData;
 
   int * countOutData = malloc(numProcesses * sizeof(int));
@@ -220,50 +219,57 @@ nstars_info_t exchangeStars(int numProcesses, int myRank, nstars_info_t myStars,
   int * dispIn = malloc(numProcesses * sizeof(int));
   FAIL_IF_NULL(dispIn);
 
-  sortStars(numProcesses, &myStars, countOutData, minPosition, blockSize, gridSizeX, myRank);
-  //printStars(myStars, myRank, 9999);
+  sortStars(numProcesses, myStars, countOutData, minPosition, blockSize, gridSizeX, myRank);
+  //printStars(&myStars, myRank, 9999);
   exchangeCountData(numProcesses, countOutData, countInData, &sumInData, myRank+10);
   calculateDisplacements(countOutData, dispOut, numProcesses);
   calculateDisplacements(countInData, dispIn, numProcesses);
 
   // printf("sumInData(%d): %d\n", myRank, sumInData);
-  myNewStars = initStars(sumInData, myStars.galaxy);
+  star_t * starsTmp = malloc(sumInData * sizeof(star_t));
+  FAIL_IF_NULL(starsTmp);
 
   // TODO!
   // printArrayS("myStarsOld", myRank, myStars.stars, myStars.n);
 
-  MPI_Alltoallv(myStars.stars, countOutData, dispOut, MPI_STAR,
-                myNewStars.stars, countInData, dispIn, MPI_STAR, MPI_COMM_WORLD);
+  MPI_Alltoallv(myStars->stars, countOutData, dispOut, MPI_STAR,
+                starsTmp, countInData, dispIn, MPI_STAR, MPI_COMM_WORLD);
 
   // printArrayS("myStarsNew", myRank, myNewStars.stars, myNewStars.n);
 
-  freeStars(&myStars);
   free(countInData);
   free(countOutData);
   free(dispIn);
   free(dispOut);
 
-  return myNewStars;
+  freeStars(myStars);
+  myStars->stars = starsTmp;
 }
 
-void gatherStars(int numProcesses, const nstars_info_t myStars, nstars_info_t allStars) {
+void gatherStars(int numProcesses, nstars_info_t * myStars, nstars_info_t * allStars) {
   // TODO
-  int n = myStars.n;
+  int n = myStars->n;
   int * countInData = malloc(numProcesses * sizeof(int));
   FAIL_IF_NULL(countInData);
+  int * dispIn = malloc(numProcesses * sizeof(int));
+  FAIL_IF_NULL(dispIn);
 
   MPI_Allgather(&n, 1, MPI_INT,
                 countInData, 1, MPI_INT, MPI_COMM_WORLD);
 
-  // TODO!
-  MPI_Allgatherv(myStars.stars, n, MPI_STAR,
-                 allStars.stars, countInData, countInData, MPI_STAR, MPI_COMM_WORLD);
+  calculateDisplacements(countInData, dispIn, numProcesses);
+
+  MPI_Allgatherv(myStars->stars, n, MPI_STAR,
+                 allStars->stars, countInData, dispIn, MPI_STAR, MPI_COMM_WORLD);
+
+  free(countInData);
+  free(dispIn);
 }
 
 
-void computeCoordinates(nstars_info_t myStars, nstars_info_t * allStars, float dt, float * masses, float * initVelocities,
+void computeCoordinates(nstars_info_t * myStars, nstars_info_t * allStars, float dt, float * masses, float * initVelocities,
                         float * minPosition, float * maxPosition, float * worldSize) {
-  int n = myStars.n;
+  int n = myStars->n;
   int allN;
   int i,j;
   int gal;
@@ -276,9 +282,9 @@ void computeCoordinates(nstars_info_t myStars, nstars_info_t * allStars, float d
   bool immobilize;
 
   for (i = 0; i < n; i++) {
-    x = myStars.stars[i].position[0];
-    y = myStars.stars[i].position[1];
-    index = myStars.stars[i].index;
+    x = myStars->stars[i].position[0];
+    y = myStars->stars[i].position[1];
+    index = myStars->stars[i].index;
     immobilize = false;
 
     for (gal = 0; gal < 2 && !immobilize; gal++) {
@@ -313,21 +319,21 @@ void computeCoordinates(nstars_info_t myStars, nstars_info_t * allStars, float d
     }
 
     if (!immobilize) {
-      myStars.stars[i].acceleration[0] = newA[0][0];
-      myStars.stars[i].acceleration[1] = newA[0][1];
+      myStars->stars[i].acceleration[0] = newA[0][0];
+      myStars->stars[i].acceleration[1] = newA[0][1];
 
       if (initVelocities != NULL) {   // first iteration only
-        myStars.stars[i].velocity[0] = initVelocities[0];
-        myStars.stars[i].velocity[1] = initVelocities[1];
+        myStars->stars[i].velocity[0] = initVelocities[0];
+        myStars->stars[i].velocity[1] = initVelocities[1];
       } else {
-        myStars.stars[i].velocity[0] += (myStars.stars[i].acceleration[0] + newA[0][0]) * dt / 2;
-        myStars.stars[i].velocity[1] += (myStars.stars[i].acceleration[1] + newA[0][1]) * dt / 2;
+        myStars->stars[i].velocity[0] += (myStars->stars[i].acceleration[0] + newA[0][0]) * dt / 2;
+        myStars->stars[i].velocity[1] += (myStars->stars[i].acceleration[1] + newA[0][1]) * dt / 2;
       }
 
-      myStars.stars[i].position[0] += myStars.stars[i].velocity[0] * dt + newA[0][0] * dt * dt / 2;
-      myStars.stars[i].position[0] = cyclePosition(myStars.stars[i].position[0], minPosition[0], maxPosition[0], worldSize[0]);
-      myStars.stars[i].position[1] += myStars.stars[i].velocity[1] * dt + newA[0][1] * dt * dt / 2;
-      myStars.stars[i].position[1] = cyclePosition(myStars.stars[i].position[1], minPosition[1], maxPosition[1], worldSize[1]);
+      myStars->stars[i].position[0] += myStars->stars[i].velocity[0] * dt + newA[0][0] * dt * dt / 2;
+      myStars->stars[i].position[0] = cyclePosition(myStars->stars[i].position[0], minPosition[0], maxPosition[0], worldSize[0]);
+      myStars->stars[i].position[1] += myStars->stars[i].velocity[1] * dt + newA[0][1] * dt * dt / 2;
+      myStars->stars[i].position[1] = cyclePosition(myStars->stars[i].position[1], minPosition[1], maxPosition[1], worldSize[1]);
     }
   }
 }
@@ -421,26 +427,19 @@ int main(int argc, char * argv[]) {
   /************************* COMPUTATION ********************************/
 
   iter = 0;
-  galaxy = 1;
-  myStars[galaxy] = exchangeStars(numProcesses, myRank, myStars[galaxy], minPosition, blockSize, gridSize[0]);
-  printStars(myStars[galaxy], myRank, iter);
-
-  printf("Barrier\n");
-  galaxy = 0;
-  myStars[galaxy] = exchangeStars(numProcesses, myRank, myStars[galaxy], minPosition, blockSize, gridSize[0]);
-  printStars(myStars[galaxy], myRank, iter);
-
-  // HEAD
-
-  // gatherStars
-
-  computeCoordinates(myStars[galaxy], allStars, timeStep, masses, initVelocities[galaxy], // TODO initV = NULL
-                    minPosition, maxPosition, worldSize);
-
-  // TODO: iteration 0
-  // allStars are ready in process 0
-  // need to compute only accelerations, not velocities
-  // if verbose: outputPositions
+  exchangeStars(numProcesses, myRank, &myStars[0], minPosition, blockSize, gridSize[0]);
+  exchangeStars(numProcesses, myRank, &myStars[1], minPosition, blockSize, gridSize[0]);
+  printStars(&myStars[0], myRank, -3);
+  printStars(&myStars[1], myRank, -3);
+  // TODO: MPI_Bcast instead of gather stars
+  gatherStars(numProcesses, &myStars[0], &allStars[0]);
+  gatherStars(numProcesses, &myStars[1], &allStars[1]);
+  printStars(&myStars[0], myRank, -2);
+  printStars(&myStars[1], myRank, -2);
+  computeCoordinates(&myStars[0], allStars, timeStep, masses, initVelocities[0], minPosition, maxPosition, worldSize);
+  computeCoordinates(&myStars[1], allStars, timeStep, masses, initVelocities[1], minPosition, maxPosition, worldSize);
+  printStars(&myStars[0], myRank, -1);
+  printStars(&myStars[1], myRank, -1);
 
   iterNum = (int) (maxSimulationTime / timeStep);
   for (iter = 1; iter < iterNum; iter++) {
@@ -448,19 +447,23 @@ int main(int argc, char * argv[]) {
       outputPositions(myRank, myStars, 0, iter - 1);
       outputPositions(myRank, myStars, 1, iter - 1);
     }
-/*
-    myStars[galaxy] = exchangeStars(numProcesses, myRank, myStars[galaxy], minPosition, blockSize, gridSize[0]);
-    gatherStars
-*/
-    computeCoordinates(myStars[galaxy], allStars, timeStep, masses, NULL,
-                      minPosition, maxPosition, worldSize);
 
+    exchangeStars(numProcesses, myRank, &myStars[0], minPosition, blockSize, gridSize[0]);
+    exchangeStars(numProcesses, myRank, &myStars[1], minPosition, blockSize, gridSize[0]);
+
+    gatherStars(numProcesses, &myStars[0], &allStars[0]);
+    gatherStars(numProcesses, &myStars[1], &allStars[1]);
+
+    computeCoordinates(&myStars[0], allStars, timeStep, masses, NULL, minPosition, maxPosition, worldSize);
+    computeCoordinates(&myStars[1], allStars, timeStep, masses, NULL, minPosition, maxPosition, worldSize);
   }
 
   outputFinalPositions(myRank, myStars);
 
-  freeStars(&myStars[galaxy]);
-  freeStars(&allStars[galaxy]);
+  freeStars(&myStars[0]);
+  freeStars(&myStars[1]);
+  freeStars(&allStars[0]);
+  freeStars(&allStars[1]);
   // TODO free memory
 
 
