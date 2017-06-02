@@ -260,15 +260,17 @@ void writeStarsToFile(nstars_info_t stars, char * filename) {
   fclose(fp);
 }
 
+
+
+
+// inline functions declared in collisions-helpers.h
+
 void rankToGridId(int myRank, int * myGridId, int gridSizeX) {
   // 0 1 2 --> (0,0) (1,0) (2,0)
   // 3 4 5 --> (0,1) (1,1) (2,1)
   myGridId[0] = myRank % gridSizeX;
   myGridId[1] = myRank / gridSizeX;
 }
-
-
-// inline functions declared in collisions-helpers.h
 
 int gridIdToRank(int myGridIdX, int myGridIdY, int gridSizeX) {
   return myGridIdY * gridSizeX + myGridIdX;

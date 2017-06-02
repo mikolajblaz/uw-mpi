@@ -355,6 +355,7 @@ int main(int argc, char * argv[]) {
   // TODO remove
   #endif
 
+
   computeWorldSize(numProcesses, myRank, gridSize, minPosition, maxPosition, worldSize, blockSize, myGridId, myStars);
   allStars[galaxy] = initStars(numStars[galaxy], galaxy, false, false);
 
@@ -371,7 +372,6 @@ int main(int argc, char * argv[]) {
   // allStars are ready in process 0
   // need to compute only accelerations, not velocities
   // if verbose: outputPositions
-
 
   iterNum = (int) (maxSimulationTime / timeStep);
   for (iter = 0; iter < iterNum; iter++) {
@@ -392,6 +392,7 @@ int main(int argc, char * argv[]) {
 /*
     }
 */
+
   }
 
   outputFinalPositions(myRank, myStars);

@@ -18,8 +18,9 @@ clean :
 	rm -f *.o *.out *.err $(ALL)
 
 test: all
-	mpicc -O3 -c -Wall -DDEBUG collisions.c
-	mpicc -O3 -o collisions collisions.o collisions-helpers.o -lm
+	mpicc -c -Wall -DDEBUG collisions.c
+	mpicc -o collisions collisions.o collisions-helpers.o -lm
+	mkdir -p tmp
 	cp tests/smoke/gal* tmp
 	cd tmp && \
 	mpirun -np 4 ../collisions -v --hor 2 --ver 2 --gal1 gal1.txt --gal2 gal2.txt --delta 0.1 --total 1.0
