@@ -20,13 +20,13 @@
 // etc.
 
 // compute min and max, with min and max already initialized!
-void countMinMax(float * A, int size, float * min, float * max) {
+void countMinMax(star_t * stars, const int dim, const int size, float * min, float * max) {
   float lmin, lmax, curr;
   lmin = *min;
   lmax = *max;
 
   for (int i = 0; i < size; i++) {
-    curr = A[i];
+    curr = stars[i].position[dim];
     if (curr < lmin)
       lmin = curr;
     if (curr > lmax)
@@ -143,52 +143,38 @@ int parseArguments(int argc, char * argv[], int * gridSize, char ** filenameGal,
 
 /******************** STARS SPECIFIC FUNCTIONS ******************************/
 
-nstars_info_t initStars(int n, int galaxy, bool withAccelerations, bool withAllInfo) {
+void initializeMpiStarType(MPI_Datatype * datatype) {
+  MPI_Datatype type[2] = { MPI_FLOAT, MPI_INT };
+  int blocklen[2] = { 6, 1 };
+  MPI_Aint disp[2];
+  star_t starExample;
+  disp[0] = (void*) &starExample.position[0] - (void*) &starExample;
+  disp[1] = (void*) &starExample.index - (void*) &starExample;
+  #ifdef DEBUG
+  printf("DISPLACEMENT: %ld %ld \n", disp[0], disp[1]);
+  #endif
+
+  MPI_Type_create_struct(2, blocklen, disp, type, datatype);
+  MPI_Type_commit(datatype);
+}
+
+nstars_info_t initStars(int n, int galaxy) {
   nstars_info_t ret;
   ret.n = n;
   ret.galaxy = galaxy;
-  ret.starsPositions[0] = malloc(n * sizeof(float));
-  FAIL_IF_NULL(ret.starsPositions[0]);
-  ret.starsPositions[1] = malloc(n * sizeof(float));
-  FAIL_IF_NULL(ret.starsPositions[1]);
-  ret.withAccelerations = withAccelerations;
-  ret.withAllInfo = withAllInfo;
-  if (withAccelerations) {
-    for (int dim = 0; dim < 2; dim++) {
-      ret.starsAccelerations[dim] = malloc(n * sizeof(float));
-      FAIL_IF_NULL(ret.starsAccelerations[dim]);
-    }
-  }
-  if (withAllInfo) {
-    for (int dim = 0; dim < 2; dim++) {
-      ret.starsVelocities[dim] = malloc(n * sizeof(float));
-      FAIL_IF_NULL(ret.starsVelocities[dim]);
-    }
-    ret.indices = malloc(n * sizeof(float));
-    FAIL_IF_NULL(ret.indices);
-  }
+  ret.stars = malloc(n * sizeof(star_t));
+  FAIL_IF_NULL(ret.stars);
   return ret;
 }
 
 void freeStars(nstars_info_t stars) {
-  free(stars.starsPositions[0]);
-  free(stars.starsPositions[1]);
-  if (stars.withAccelerations) {
-    for (int dim = 0; dim < 2; dim++) {
-      free(stars.starsAccelerations[dim]);
-    }
-  }
-  if (stars.withAllInfo) {
-    for (int dim = 0; dim < 2; dim++) {
-      free(stars.starsVelocities[dim]);
-    }
-    free(stars.indices);
-  }
+  free(stars.stars);
 }
 
 
 // perform counting sort to sort stars
 void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, float * minPosition, float * blockSize, int gridSizeX) {
+  // HEAD
   const int n = stars->n;
   int i;
   int who;
@@ -200,8 +186,8 @@ void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, floa
   memset(countOutData, 0, numProcesses);
   for (i = 0; i < n; i++) {
     who = whoOwnsStarInRank(
-      stars->starsPositions[0][i],
-      stars->starsPositions[1][i],
+      stars->stars[i].position[0],
+      stars->stars[i].position[1],
       minPosition[0],
       minPosition[1],
       blockSize[0],
@@ -221,18 +207,12 @@ void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, floa
   }
   // output[countPrefixSum[whoOwns[i]] - 1] = whoOwns[i];
 
-  nstars_info_t starsTmp = initStars(n, stars->galaxy, stars->withAccelerations, stars->withAllInfo);
+  nstars_info_t starsTmp = initStars(n, stars->galaxy);
 
   int dest;
-  int dim;
   for (i = 0; i < n; i++) {
     dest = --countPrefixSum[whoOwns[i]];
-    for (dim = 0; dim < 2; dim++) {
-      starsTmp.starsPositions[dim][dest] = stars->starsPositions[dim][i];
-      starsTmp.starsAccelerations[dim][dest] = stars->starsAccelerations[dim][i];
-      starsTmp.starsVelocities[dim][dest] = stars->starsVelocities[dim][i];
-    }
-    starsTmp.indices[dest] = stars->indices[i];
+    starsTmp.stars[dest] = stars->stars[i];
   }
 
   free(countPrefixSum);
@@ -254,7 +234,7 @@ void writeStarsToFile(nstars_info_t stars, char * filename) {
   }
 
   for (int i = 0; i < n; i++) {
-    fprintf(fp, "%.1f %.1f\n", stars.starsPositions[0][i], stars.starsPositions[1][i]);
+    fprintf(fp, "%.1f %.1f\n", stars.stars[i].position[0], stars.stars[i].position[1]);
   }
 
   fclose(fp);

@@ -13,27 +13,30 @@
   { fprintf(stderr, "ERROR [%s, line %d]: couldn't allocate memory!\n", __FILE__, __LINE__); MPI_Finalize(); exit(1); }
 
 // all information about stars velocities, acceleration and indices
+typedef struct star_s {
+    float position[2];
+    float velocity[2];
+    float acceleration[2];
+    int index;    // TODO: float?
+} star_t;
+
 typedef struct nstars_info_s {
-    int n;
-    int galaxy;
-    bool withAccelerations; // true if space for accelerations is allocated
-    bool withAllInfo;       // true if space for velocities and indices is allocated
-    float * starsPositions[2];
-    float * starsVelocities[2];
-    float * starsAccelerations[2];
-    int * indices;
+  int n;
+  int galaxy;
+  star_t * stars;
 } nstars_info_t;
 
 
 // helper functions
-void countMinMax(float * A, int size, float * min, float * max);
+void countMinMax(star_t * stars, const int dim, const int size, float * min, float * max);
 void quicksort(int *A, int len);
 int parseArguments(int argc, char * argv[], int * gridSize, char ** filenameGal,
                    float * timeStep, float * maxSimulationTime, bool * verbose);
 void writeStarsToFile(nstars_info_t stars, char * filename);
 
 // stars related functions
-nstars_info_t initStars(int n, int galaxy, bool withAccelerations, bool withAllInfo);
+void initializeMpiStarType(MPI_Datatype * datatype);
+nstars_info_t initStars(int n, int galaxy);
 void freeStars(nstars_info_t stars);
 void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, float * minPosition, float * blockSize, int gridSizeX);
 

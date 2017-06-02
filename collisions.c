@@ -15,6 +15,7 @@
 #include <stdbool.h>
 #include "collisions-helpers.h"
 
+MPI_Datatype MPI_STAR;
 
 /* MPI signatures
 
@@ -71,8 +72,8 @@ void readInput(int numProcesses, int myRank, char ** filenameGal,
 
   if (myRank != 0) {
     distributeConfiguration(myRank, numStars, initVelocities, mass);
-    myStars[0] = initStars(0, 0, true, true);
-    myStars[0] = initStars(0, 1, true, true);
+    myStars[0] = initStars(0, 0);
+    myStars[1] = initStars(0, 1);
 
   } else { // process 0 reads from input
     for (galaxy = 0; galaxy < 2; galaxy++) {
@@ -95,9 +96,9 @@ void readInput(int numProcesses, int myRank, char ** filenameGal,
 
     // read stars into myStars
     for (galaxy = 0; galaxy < 2; galaxy++) {
-      myStars[galaxy] = initStars(numStars[galaxy], galaxy, true, true);
+      myStars[galaxy] = initStars(numStars[galaxy], galaxy);
       for (int i = 0; i < numStars[galaxy]; i++) {
-        ret = fscanf(fp[galaxy], "%f %f", &myStars[galaxy].starsPositions[0][i], &myStars[galaxy].starsPositions[1][i]);
+        ret = fscanf(fp[galaxy], "%f %f", &myStars[galaxy].stars[i].position[0], &myStars[galaxy].stars[i].position[1]);
         if (ret != 2) {
           fprintf(stderr, "ERROR while reading stars positions (line %d)!\n", i);
           MPI_Finalize();
@@ -109,11 +110,11 @@ void readInput(int numProcesses, int myRank, char ** filenameGal,
   }
 }
 
-void printStars(nstars_info_t stars) {
+void printStars(nstars_info_t stars, int myRank, int iter) {
   int n = stars.n;
-  printf("STARS:\n");
+  printf("STARS[%d] on proc [%d] in iter [%d]:\n", stars.galaxy, myRank, iter);
   for (int i = 0; i < n; i++) {
-    printf(" %f %f\n", stars.starsPositions[0][i], stars.starsPositions[1][i]);
+    printf(" %f %f\n", stars.stars[i].position[0], stars.stars[i].position[1]);
   }
 }
 
@@ -126,8 +127,8 @@ void checkConfig(int myRank, int * numStars, float (*initVelocities)[2], float *
       myRank, numStars[gal], initVelocities[gal][0], initVelocities[gal][1], masses[gal]);
   }
 
-  printStars(myStars[0]);
-  printStars(myStars[1]);
+  printStars(myStars[0], myRank, 0);
+  printStars(myStars[1], myRank, 0);
 }
 
 void computeWorldSize(int numProcesses, int myRank, int * gridSize, float * minPosition, float * maxPosition,
@@ -141,12 +142,12 @@ void computeWorldSize(int numProcesses, int myRank, int * gridSize, float * minP
   if (myRank == 0) {
     for (dim = 0; dim < 2; dim++) {
       // TODO: czy istnieje >= 1 gwiazda
-      min = myStars[0].starsPositions[dim][0];
-      max = myStars[0].starsPositions[dim][0];
+      min = myStars[0].stars[0].position[dim];
+      max = myStars[0].stars[0].position[dim];
 
       // find min and max in both galaxies
       for (gal = 0; gal < 2; gal++) {
-        countMinMax(myStars[gal].starsPositions[dim], myStars[gal].n, &min, &max);
+        countMinMax(myStars[gal].stars, dim, myStars[gal].n, &min, &max);
       }
       #ifdef DEBUG
       printf("MinMax: %f %f \n", min, max);
@@ -207,11 +208,11 @@ nstars_info_t exchangeStars(int numProcesses, int myRank, nstars_info_t myStars,
   sortStars(numProcesses, &myStars, countOutData, minPosition, blockSize, gridSizeX);
   exchangeCountData(numProcesses, countOutData, countInData, &sumInData);
 
-  myNewStars = initStars(sumInData, myStars.galaxy, myStars.withAccelerations, myStars.withAllInfo);
+  myNewStars = initStars(sumInData, myStars.galaxy);
 
   // TODO!
-  MPI_Alltoallv(myStars.starsPositions[0], countOutData, countOutData, MPI_FLOAT,
-                myNewStars.starsPositions[0], countInData, countInData, MPI_FLOAT, MPI_COMM_WORLD);
+  MPI_Alltoallv(myStars.stars, countOutData, countOutData, MPI_STAR,
+                myNewStars.stars, countInData, countInData, MPI_STAR, MPI_COMM_WORLD);
 
   freeStars(myStars);
   free(countInData);
@@ -230,14 +231,15 @@ void gatherStars(int numProcesses, const nstars_info_t myStars, nstars_info_t al
                 countInData, 1, MPI_INT, MPI_COMM_WORLD);
 
   // TODO!
-  MPI_Allgatherv(myStars.starsPositions[0], n, MPI_FLOAT,
-                 allStars.starsPositions[0], countInData, countInData, MPI_FLOAT, MPI_COMM_WORLD);
+  MPI_Allgatherv(myStars.stars, n, MPI_STAR,
+                 allStars.stars, countInData, countInData, MPI_STAR, MPI_COMM_WORLD);
 }
 
 void computeNewPositions(nstars_info_t stars, float dt) {
   int n = stars.n;
   for (int i = 0; i < n; i++) {
-    stars.starsPositions[0][i] += stars.starsVelocities[0][i] * dt + stars.starsAccelerations[0][i] * dt * dt / 2;
+    stars.stars[i].position[0] += stars.stars[i].velocity[0] * dt + stars.stars[i].acceleration[0] * dt * dt / 2;
+    stars.stars[i].position[1] += stars.stars[i].velocity[1] * dt + stars.stars[i].acceleration[1] * dt * dt / 2;
   }
 }
 
@@ -254,13 +256,15 @@ void computeNewAccelerationsAndVelocities(nstars_info_t myStars, nstars_info_t a
   for (i = 0; i < n; i++) {
     newA[0] = 0;
     newA[1] = 0;
-    x = myStars.starsPositions[0][i];
-    y = myStars.starsPositions[1][i];
+    x = myStars.stars[i].position[0];
+    y = myStars.stars[i].position[1];
 
     for (j = 0; j < allN; j++) {
-      distX = allStars.starsPositions[0][j] - x;
-      distY = allStars.starsPositions[1][j] - y;
+      // TODO: if i != j
+      distX = allStars.stars[j].position[0] - x;
+      distY = allStars.stars[j].position[1] - y;
       dist3 = distX * distX + distY * distY;
+      // TODO: if dist != 0
       dist3 = dist3 * sqrt(dist3);  // r^3
 
       newA[0] += distX / dist3;
@@ -269,10 +273,10 @@ void computeNewAccelerationsAndVelocities(nstars_info_t myStars, nstars_info_t a
     newA[0] *= GM;
     newA[1] *= GM;
 
-    myStars.starsVelocities[0][i] += (myStars.starsAccelerations[0][i] + newA[0]) * dt / 2;
-    myStars.starsVelocities[1][i] += (myStars.starsAccelerations[1][i] + newA[1]) * dt / 2;
-    myStars.starsAccelerations[0][i] = newA[0];
-    myStars.starsAccelerations[1][i] = newA[1];
+    myStars.stars[i].velocity[0] += (myStars.stars[i].acceleration[0] + newA[0]) * dt / 2;
+    myStars.stars[i].velocity[1] += (myStars.stars[i].acceleration[1] + newA[1]) * dt / 2;
+    myStars.stars[i].acceleration[0] = newA[0];
+    myStars.stars[i].acceleration[1] = newA[1];
     // TODO what if F > FLOAT_MAX / 2
     // TODO what to do with me?
   }
@@ -332,6 +336,8 @@ int main(int argc, char * argv[]) {
   MPI_Comm_size(MPI_COMM_WORLD, &numProcesses);
   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
 
+  initializeMpiStarType(&MPI_STAR);
+
   ret = parseArguments(argc, argv, gridSize, filenameGal, &timeStep, &maxSimulationTime, &verbose);
   if (ret == 0 && numProcesses != gridSize[0] * gridSize[1]) {
     fprintf(stderr, "ERROR: Number of active processes must be equal to (%d * %d)!\n", gridSize[0], gridSize[1]);
@@ -357,7 +363,7 @@ int main(int argc, char * argv[]) {
 
 
   computeWorldSize(numProcesses, myRank, gridSize, minPosition, maxPosition, worldSize, blockSize, myGridId, myStars);
-  allStars[galaxy] = initStars(numStars[galaxy], galaxy, false, false);
+  allStars[galaxy] = initStars(numStars[galaxy], galaxy);
 
 
   // now all processes know all parameters
