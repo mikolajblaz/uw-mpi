@@ -1,3 +1,8 @@
+/*
+  Autor: Mikołaj Błaż
+  Nr indeksu: 346862
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -289,6 +294,12 @@ void writeStarsToFile(nstars_info_t * stars, char * filename) {
 }
 
 
+void calculateDisplacements(int * counts, int * disp, const int size) {
+  disp[0] = 0;
+	for (int i = 1; i < size; i++){
+		disp[i] = counts[i - 1] + disp[i - 1];
+	}
+}
 
 
 // inline functions declared in collisions-helpers.h

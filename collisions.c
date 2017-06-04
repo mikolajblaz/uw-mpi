@@ -14,6 +14,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include "collisions-helpers.h"
+#include "collisions-optimizations.h"
 
 MPI_Datatype MPI_STAR;
 
@@ -188,13 +189,6 @@ void exchangeCountData(int numProcesses, int * countOutData, int * countInData, 
   *sum = lsum;
 }
 
-void calculateDisplacements(int * counts, int * disp, const int size) {
-  disp[0] = 0;
-	for (int i = 1; i < size; i++){
-		disp[i] = counts[i - 1] + disp[i - 1];
-	}
-}
-
 void exchangeStars(int numProcesses, int myRank, nstars_info_t * myStars, float * minPosition, float * blockSize, int gridSizeX) {
   int sumInData;
 
@@ -236,27 +230,7 @@ void exchangeStars(int numProcesses, int myRank, nstars_info_t * myStars, float 
   myStars->stars = starsTmp;
 }
 
-void gatherStars(int numProcesses, nstars_info_t * myStars, nstars_info_t * allStars) {
-  // TODO
-  int n = myStars->n;
-  int * countInData = malloc(numProcesses * sizeof(int));
-  FAIL_IF_NULL(countInData);
-  int * dispIn = malloc(numProcesses * sizeof(int));
-  FAIL_IF_NULL(dispIn);
-
-  MPI_Allgather(&n, 1, MPI_INT,
-                countInData, 1, MPI_INT, MPI_COMM_WORLD);
-
-  calculateDisplacements(countInData, dispIn, numProcesses);
-
-  MPI_Allgatherv(myStars->stars, n, MPI_STAR,
-                 allStars->stars, countInData, dispIn, MPI_STAR, MPI_COMM_WORLD);
-
-  free(countInData);
-  free(dispIn);
-}
-
-void computeCoordinates(nstars_info_t * myStars, nstars_info_t * allStars, float dt, float * masses, float * initVelocities,
+void computeCoordinates(nstars_info_t * myStars, nstars_info_t * allStars, const float dt, float * masses, float * initVelocities,
                         float * minPosition, float * maxPosition, float * worldSize) {
   int n = myStars->n;
   int allN;
@@ -347,7 +321,6 @@ void outputFinalPositions(int myRank, nstars_info_t * myStars) {
 
 int main(int argc, char * argv[]) {
   // stars
-  int galaxy;
   int numStars[2];
   nstars_info_t myStars[2];
   nstars_info_t allStars[2];
@@ -394,9 +367,7 @@ int main(int argc, char * argv[]) {
   }
 
   // Here arguments are correct
-
-  galaxy = 0;
-
+  
   readInput(numProcesses, myRank, filenameGal, numStars, initVelocities, masses, myStars);
   // now everyone has filled and initialized: numStars, initVelocities, masses, myStars
   // process 0 has all stars
@@ -420,7 +391,7 @@ int main(int argc, char * argv[]) {
 
   iter = 0;
   exchangeStars(numProcesses, myRank, &myStars[0], minPosition, blockSize, gridSize[0]);
-  exchangeStars(numProcesses, myRank, &myStars[1], minPosition, blockSize, gridSize[0]);
+  exchangeStars(numProcesses, myRank, &myStars[1], minPosition, blockSize, gridSize[0]);  // gridSize[0]!
 
   // TODO: MPI_Bcast instead of gather stars
   gatherStars(numProcesses, &myStars[0], &allStars[0]);
@@ -429,8 +400,6 @@ int main(int argc, char * argv[]) {
   if (verbose) {
     outputPositions(myRank, allStars, 0, 0);
     outputPositions(myRank, allStars, 1, 0);
-    printStars(&myStars[0], myRank, 0);
-    printStars(&myStars[1], myRank, 0);
   }
 
   computeCoordinates(&myStars[0], allStars, timeStep, masses, initVelocities[0], minPosition, maxPosition, worldSize);
@@ -439,7 +408,7 @@ int main(int argc, char * argv[]) {
   iterNum = (int) (maxSimulationTime / timeStep);
   for (iter = 1; iter < iterNum; iter++) {
     exchangeStars(numProcesses, myRank, &myStars[0], minPosition, blockSize, gridSize[0]);
-    exchangeStars(numProcesses, myRank, &myStars[1], minPosition, blockSize, gridSize[0]);
+    exchangeStars(numProcesses, myRank, &myStars[1], minPosition, blockSize, gridSize[0]);  // gridSize[0]!
 
     gatherStars(numProcesses, &myStars[0], &allStars[0]);
     gatherStars(numProcesses, &myStars[1], &allStars[1]);
@@ -447,8 +416,6 @@ int main(int argc, char * argv[]) {
     if (verbose) {
       outputPositions(myRank, allStars, 0, iter);
       outputPositions(myRank, allStars, 1, iter);
-      printStars(&myStars[0], myRank, iter);
-      printStars(&myStars[1], myRank, iter);
     }
 
     computeCoordinates(&myStars[0], allStars, timeStep, masses, NULL, minPosition, maxPosition, worldSize);

@@ -1,3 +1,8 @@
+/*
+  Autor: Mikołaj Błaż
+  Nr indeksu: 346862
+*/
+
 #ifndef _COLLISIONS_HELPERS_
 #define _COLLISIONS_HELPERS_
 
@@ -29,6 +34,8 @@ typedef struct nstars_info_s {
   star_t * stars;
 } nstars_info_t;
 
+extern MPI_Datatype MPI_STAR;
+
 
 // helper functions
 void countMinMax(star_t * stars, const int dim, const int size, float * min, float * max);
@@ -45,6 +52,7 @@ void initializeMpiStarType(MPI_Datatype * datatype);
 nstars_info_t initStars(int n, int galaxy);
 void freeStars(nstars_info_t * stars);
 void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, float * minPosition, float * blockSize, int gridSizeX, int myRank);
+void calculateDisplacements(int * counts, int * disp, const int size);
 
 
 
