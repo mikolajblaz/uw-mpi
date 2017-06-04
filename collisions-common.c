@@ -337,7 +337,7 @@ void distributeConfiguration(int myRank, int * numStars, float (*initVelocities)
  * - reads all stars into variable 'myStars'.
  */
 void readInput(int numProcesses, int myRank, char ** filenameGal,
-                                     int * numStars, float (*initVelocities)[2], float * mass, nstars_info_t * myStars) {
+               int * numStars, float (*initVelocities)[2], float * mass, nstars_info_t * myStars) {
   FILE * fp[2];
   int galaxy;
   int ret;

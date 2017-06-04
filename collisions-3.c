@@ -17,6 +17,12 @@
 
 MPI_Datatype MPI_STAR;
 
+static inline int myStarsCount(int numProcesses, int myRank, int numAllStars) {
+  int numBase = numAllStars / numProcesses;
+  int numInc = numAllStars % numProcesses;
+  return (myRank >= numInc ? numBase : (numBase + 1));
+}
+
 void gatherAllStars(int numProcesses, nstars_info_t * myStars, nstars_info_t * allStars) {
   int n = myStars->n;
   int * countInData = malloc(numProcesses * sizeof(int));
@@ -35,6 +41,41 @@ void gatherAllStars(int numProcesses, nstars_info_t * myStars, nstars_info_t * a
   free(countInData);
   free(dispIn);
 }
+
+
+void distributeStars(nstars_info_t * myStars, int numProcesses, int myRank, int numAllStars) {
+  int myStarsCnt = myStarsCount(numProcesses, myRank, numAllStars);
+  int * countOutData = NULL;
+  int * dispOut = NULL;
+
+  if (myRank == 0) {
+    // how much data should be sent to each process
+    countOutData = malloc(numProcesses * sizeof(int));
+    FAIL_IF_NULL(countOutData);
+    dispOut = malloc(numProcesses * sizeof(int));
+    FAIL_IF_NULL(dispOut);
+
+    for (int i = 0; i < numProcesses; i++) {
+      countOutData[i] = myStarsCount(numProcesses, i, numAllStars);
+    }
+    calculateDisplacements(countOutData, dispOut, numProcesses);
+  }
+
+  star_t * starsTmp = malloc(myStarsCnt * sizeof(star_t));
+  FAIL_IF_NULL(starsTmp);
+
+  MPI_Scatterv(myStars->stars, countOutData, dispOut, MPI_STAR,
+               starsTmp, myStarsCnt, MPI_STAR, 0, MPI_COMM_WORLD);
+
+  free(countOutData);
+  free(dispOut);
+
+  freeStars(myStars);
+  myStars->n = myStarsCnt;
+  myStars->stars = starsTmp;
+
+}
+
 
 int main(int argc, char * argv[]) {
   // stars
@@ -96,16 +137,15 @@ int main(int argc, char * argv[]) {
   // now all processes know all parameters
   // we are ready for computation
 
-
   /************************* COMPUTATION ********************************/
+
+  distributeStars(&myStars[0], numProcesses, myRank, numStars[0]);
+  distributeStars(&myStars[1], numProcesses, myRank, numStars[1]);
 
   iterNum = (int) (maxSimulationTime / timeStep);
   for (iter = 0; iter < iterNum; iter++){
-    // TODO: asynch
-    exchangeStars(numProcesses, myRank, &myStars[0], minPosition, blockSize, gridSize[0]);
-    exchangeStars(numProcesses, myRank, &myStars[1], minPosition, blockSize, gridSize[0]);  // gridSize[0]!
+    // here we don't exchange stars between processors, just gather them
 
-    // TODO: MPI_Bcast instead of gather stars
     gatherAllStars(numProcesses, &myStars[0], &allStars[0]);
     gatherAllStars(numProcesses, &myStars[1], &allStars[1]);
 
@@ -120,7 +160,6 @@ int main(int argc, char * argv[]) {
 
   gatherAllStars(numProcesses, &myStars[0], &allStars[0]);
   gatherAllStars(numProcesses, &myStars[1], &allStars[1]);
-  // TODO: gather all stars!
   outputFinalPositions(myRank, allStars);
 
   freeStars(&myStars[0]);
