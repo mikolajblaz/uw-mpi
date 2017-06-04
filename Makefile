@@ -5,7 +5,7 @@ OBJS        := collisions.o collisions-helpers.o
 HEADERS     := collisions-helpers.h
 EXEC        := collisions
 ALL         := $(EXEC)
-TESTDIR     := my1
+TESTDIR     := my2
 
 all : $(ALL)
 

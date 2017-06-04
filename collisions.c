@@ -320,6 +320,7 @@ void computeCoordinates(nstars_info_t * myStars, nstars_info_t * allStars, float
         myStars->stars[i].velocity[1] += (myStars->stars[i].acceleration[1] + newA[0][1]) * dt / 2;
       }
 
+      // these are positions for the next iteration (t + dt)
       myStars->stars[i].position[0] += myStars->stars[i].velocity[0] * dt + newA[0][0] * dt * dt / 2;
       myStars->stars[i].position[0] = cyclePosition(myStars->stars[i].position[0], minPosition[0], maxPosition[0], worldSize[0]);
       myStars->stars[i].position[1] += myStars->stars[i].velocity[1] * dt + newA[0][1] * dt * dt / 2;
