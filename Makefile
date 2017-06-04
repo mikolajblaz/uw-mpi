@@ -5,6 +5,7 @@ OBJS        := collisions.o collisions-helpers.o
 HEADERS     := collisions-helpers.h
 EXEC        := collisions
 ALL         := $(EXEC)
+TESTDIR     := my1
 
 all : $(ALL)
 
@@ -21,7 +22,7 @@ test: all
 	mpicc -c -Wall -DDEBUG collisions.c
 	mpicc -o collisions collisions.o collisions-helpers.o -lm
 	mkdir -p tmp
-	cp tests/smoke/gal* tmp
+	cp tests/$(TESTDIR)/gal* tmp
 	cd tmp && \
 	mpirun -np 4 ../collisions -v --hor 2 --ver 2 --gal1 gal1.txt --gal2 gal2.txt --delta 0.1 --total 1.0
-	diff -r tmp tests/smoke
+	diff -r tmp tests/$(TESTDIR)

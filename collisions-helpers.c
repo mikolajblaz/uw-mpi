@@ -221,8 +221,8 @@ void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, floa
     );
     #ifdef DEBUG
     assert(0 <= who && who < numProcesses);
+    // printf("Who: %d\n", who);
     #endif
-    printf("Who: %d\n", who);
     whoOwns[i] = who;
     countOutData[who] += 1;
   }
