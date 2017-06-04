@@ -20,7 +20,7 @@ typedef struct star_s {
     float position[2];
     float velocity[2];
     float acceleration[2];
-    int index;    // TODO: float?
+    int index;
 } star_t;
 
 typedef struct nstars_info_s {

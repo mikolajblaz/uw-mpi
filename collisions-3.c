@@ -9,8 +9,6 @@
 #include <sys/time.h>
 #include <mpi.h>
 #include <assert.h>
-// TODO remove
-
 #include <math.h>
 #include <stdbool.h>
 #include "collisions-common.h"

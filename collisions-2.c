@@ -109,13 +109,10 @@ void gatherStars(int numProcesses, nstars_info_t * myStars, nstars_info_t * allS
   int * dispIn = malloc(numProcesses * sizeof(int));
   FAIL_IF_NULL(dispIn);
 
-  // HEAD
-
   prepareOutCount(numProcesses, myStars->n, countOutData, myGridId, gridSize);
 
   MPI_Alltoall(countOutData, 1, MPI_INT,
                countInData, 1, MPI_INT, MPI_COMM_WORLD);
-  // TODO in place?
 
   memset(dispOut, 0, numProcesses * sizeof(int));   // all processes receive the same data from array myStars->stars
   calculateDisplacements(countInData, dispIn, numProcesses);
@@ -124,18 +121,11 @@ void gatherStars(int numProcesses, nstars_info_t * myStars, nstars_info_t * allS
   for (int i = 0; i < numProcesses; i++) {
     sumInData += countInData[i];
   }
-  // printf("sumInData(%d): %d\n", myRank, sumInData);
   star_t * starsTmp = malloc(sumInData * sizeof(star_t));
   FAIL_IF_NULL(starsTmp);
 
-  // printStars(myStars, myRank, -777);
-
-  // printArrayS("myStarsOld", myRank, myStars.stars, myStars.n);
-
   MPI_Alltoallv(myStars->stars, countOutData, dispOut, MPI_STAR,
                 starsTmp, countInData, dispIn, MPI_STAR, MPI_COMM_WORLD);
-
-  //printArrayS("myStarsNew", myRank, starsTmp, sumInData);
 
   free(countInData);
   free(countOutData);
@@ -214,7 +204,6 @@ int main(int argc, char * argv[]) {
 
   iterNum = (int) (maxSimulationTime / timeStep);
   for (iter = 0; iter < iterNum; iter++){
-    // TODO: asynch
     exchangeStars(numProcesses, myRank, &myStars[0], minPosition, blockSize, gridSize[0]);
     exchangeStars(numProcesses, myRank, &myStars[1], minPosition, blockSize, gridSize[0]);  // gridSize[0]!
 
@@ -225,7 +214,6 @@ int main(int argc, char * argv[]) {
       outputPositions(myRank, allStars, 1, iter);
     }
 
-    // TODO: MPI_Bcast instead of gather stars
     gatherStars(numProcesses, &myStars[0], &allStars[0], myGridId, gridSize);
     gatherStars(numProcesses, &myStars[1], &allStars[1], myGridId, gridSize);
 

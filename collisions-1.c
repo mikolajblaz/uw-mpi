@@ -9,8 +9,6 @@
 #include <sys/time.h>
 #include <mpi.h>
 #include <assert.h>
-// TODO remove
-
 #include <math.h>
 #include <stdbool.h>
 #include "collisions-common.h"
@@ -101,11 +99,9 @@ int main(int argc, char * argv[]) {
 
   iterNum = (int) (maxSimulationTime / timeStep);
   for (iter = 0; iter < iterNum; iter++){
-    // TODO: asynch
     exchangeStars(numProcesses, myRank, &myStars[0], minPosition, blockSize, gridSize[0]);
     exchangeStars(numProcesses, myRank, &myStars[1], minPosition, blockSize, gridSize[0]);  // gridSize[0]!
 
-    // TODO: MPI_Bcast instead of gather stars
     gatherAllStars(numProcesses, &myStars[0], &allStars[0]);
     gatherAllStars(numProcesses, &myStars[1], &allStars[1]);
 

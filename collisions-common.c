@@ -78,22 +78,6 @@ void countMinMax(star_t * stars, const int dim, const int size, float * min, flo
   *max = lmax;
 }
 
-
-void printArray(char * name, int myRank, int * A, int size) {
-  printf("%s (proc: %d): [ ", name, myRank);
-  for (int i = 0; i < size; i++) {
-    printf("%d ", A[i]);
-  }
-  printf("]\n");
-}
-void printArrayS(char * name, int myRank, star_t * A, int size) {
-  printf("%s (proc: %d): [ ", name, myRank);
-  for (int i = 0; i < size; i++) {
-    printf("(%f,%f) ", A[i].position[0], A[i].position[1]);
-  }
-  printf("]\n");
-}
-
 // perform counting sort to sort stars
 void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, float * minPosition, float * blockSize, int gridSizeX, int myRank) {
   memset(countOutData, 0, numProcesses * sizeof(int));
@@ -116,26 +100,15 @@ void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, floa
       blockSize,
       gridSizeX
     );
-    #ifdef DEBUG
-    assert(0 <= who && who < numProcesses);
-    // printf("Who: %d\n", who);
-    #endif
     whoOwns[i] = who;
     countOutData[who] += 1;
   }
-
-  //printArray("countOutData", myRank, countOutData, numProcesses);
-
-  // TODO: send could (should!) be here
-  // count[i] += count[i-1]
 
   countPrefixSum[0] = countOutData[0];
   for (i = 1; i < numProcesses; i++) {
     countPrefixSum[i] = countPrefixSum[i - 1] + countOutData[i];
   }
   // output[countPrefixSum[whoOwns[i]] - 1] = whoOwns[i];
-
-  //printArray("countPrefixSum", myRank, countPrefixSum, numProcesses);
 
   star_t * starsTmp = malloc(n * sizeof(star_t));
   FAIL_IF_NULL(starsTmp);
@@ -173,11 +146,6 @@ void writeStarsToFile(nstars_info_t * stars, char * filename) {
       exit(1);
   }
 
-  #ifdef DEBUG
-  for (int i = 0; i < n; i++) {
-    fprintf(fp, "%d %.1f %.1f\n", stars->stars[i].index, stars->stars[i].position[0], stars->stars[i].position[1]);
-  }
-  #endif
   for (int i = 0; i < n; i++) {
     fprintf(fp, "%.1f %.1f\n", stars->stars[i].position[0], stars->stars[i].position[1]);
   }
@@ -261,11 +229,6 @@ int parseArguments(int argc, char * argv[], int * gridSize, char ** filenameGal,
     return 6;
   }
 
-  #ifdef DEBUG
-  // TODO remove
-  printf("#%d #%d #%s #%s #%f #%f\n", gridSize[0], gridSize[1], filenameGal[0], filenameGal[1], *timeStep, *maxSimulationTime);
-  #endif
-
   return 0;
 }
 
@@ -276,9 +239,6 @@ void initializeMpiStarType(MPI_Datatype * datatype) {
   star_t starExample;
   disp[0] = (void*) &starExample.position[0] - (void*) &starExample;
   disp[1] = (void*) &starExample.index - (void*) &starExample;
-  #ifdef DEBUG
-  printf("DISPLACEMENT: %ld %ld \n", disp[0], disp[1]);
-  #endif
 
   MPI_Type_create_struct(2, blocklen, disp, type, datatype);
   MPI_Type_commit(datatype);
@@ -362,7 +322,6 @@ void readInput(int numProcesses, int myRank, char ** filenameGal,
     }
 
     distributeConfiguration(myRank, numStars, initVelocities, mass);
-    // TODO: asynchronous
 
     // read stars into myStars
     for (galaxy = 0; galaxy < 2; galaxy++) {
@@ -390,19 +349,6 @@ void printStars(nstars_info_t * stars, int myRank, int iter) {
   printf("]\n");
 }
 
-void checkConfig(int myRank, int * numStars, float (*initVelocities)[2], float * masses, nstars_info_t * myStars) {
-  if (myRank > 1)
-    return;
-
-  for (int gal = 0; gal < 2; gal++) {
-    printf("P[%d]: numStars[%d], v[%f, %f], m[%f]\n",
-      myRank, numStars[gal], initVelocities[gal][0], initVelocities[gal][1], masses[gal]);
-  }
-
-  printStars(&myStars[0], myRank, 0);
-  printStars(&myStars[1], myRank, 0);
-}
-
 void computeWorldSize(int numProcesses, int myRank, int * gridSize, float * minPosition, float * maxPosition,
                       float * worldSize, float * blockSize, int * myGridId, nstars_info_t * myStars) {
   // calculate min and max position
@@ -413,7 +359,7 @@ void computeWorldSize(int numProcesses, int myRank, int * gridSize, float * minP
   // only process 0 computes min and max
   if (myRank == 0) {
     for (dim = 0; dim < 2; dim++) {
-      // TODO: czy istnieje >= 1 gwiazda
+      // we know that there is >= 1 star in each galaxy
       min = myStars[0].stars[0].position[dim];
       max = myStars[0].stars[0].position[dim];
 
@@ -421,9 +367,6 @@ void computeWorldSize(int numProcesses, int myRank, int * gridSize, float * minP
       for (gal = 0; gal < 2; gal++) {
         countMinMax(myStars[gal].stars, dim, myStars[gal].n, &min, &max);
       }
-      #ifdef DEBUG
-      printf("MinMax: %f %f \n", min, max);
-      #endif
       diffHalf = (max - min) / 2;
       minMax[dim] = min - diffHalf;
       minMax[2 + dim] = max + diffHalf;
@@ -445,18 +388,6 @@ void computeWorldSize(int numProcesses, int myRank, int * gridSize, float * minP
   rankToGridId(myRank, myGridId, gridSize[0]);
   // 0 1 2 --> (0,0) (1,0) (2,0)
   // 3 4 5 --> (0,1) (1,1) (2,1)
-
-  #ifdef DEBUG
-  // TODO remove?
-  assert(myRank == gridIdToRank(myGridId[0], myGridId[1], gridSize[0]));
-
-  // if (myRank == 1) {
-  //   for (int dim = 0; dim < 2; dim++) {
-  //     printf("$WORLD: P[%d][%d, %d]: dim: %d world from [%f] to [%f], size: [%f], blockSize: [%f]\n",
-  //       myRank, myGridId[0], myGridId[1], dim, minPosition[dim],  maxPosition[dim], worldSize[dim], blockSize[dim]);
-  //   }
-  // }
-  #endif
 }
 
 void calculateDisplacements(int * counts, int * disp, const int size) {
@@ -482,7 +413,6 @@ void exchangeStars(int numProcesses, int myRank, nstars_info_t * myStars, float 
 
   MPI_Alltoall(countOutData, 1, MPI_INT,
                countInData, 1, MPI_INT, MPI_COMM_WORLD);
-  // TODO in place?
 
   calculateDisplacements(countOutData, dispOut, numProcesses);
   calculateDisplacements(countInData, dispIn, numProcesses);
@@ -491,18 +421,11 @@ void exchangeStars(int numProcesses, int myRank, nstars_info_t * myStars, float 
   for (int i = 0; i < numProcesses; i++) {
     sumInData += countInData[i];
   }
-  // printf("sumInData(%d): %d\n", myRank, sumInData);
   star_t * starsTmp = malloc(sumInData * sizeof(star_t));
   FAIL_IF_NULL(starsTmp);
 
-  // printStars(myStars, myRank, -777);
-
-  // printArrayS("myStarsOld", myRank, myStars.stars, myStars.n);
-
   MPI_Alltoallv(myStars->stars, countOutData, dispOut, MPI_STAR,
                 starsTmp, countInData, dispIn, MPI_STAR, MPI_COMM_WORLD);
-
-  //printArrayS("myStarsNew", myRank, starsTmp, sumInData);
 
   free(countInData);
   free(countOutData);
@@ -540,7 +463,6 @@ void computeCoordinates(nstars_info_t * myStars, nstars_info_t * allStars, const
       newA[gal][0] = 0;
       newA[gal][1] = 0;
       for (j = 0; j < allN; j++) {
-        // TODO: optimize
         if (myGal == gal && index == allStars[gal].stars[j].index)  // not with myself
           continue;
 
