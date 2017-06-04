@@ -9,19 +9,13 @@
 #include <sys/time.h>
 #include <mpi.h>
 #include <assert.h>
-// TODO remove
-
 #include <math.h>
 #include <stdbool.h>
 #include "collisions-common.h"
 
 MPI_Datatype MPI_STAR;
 
-#define PRINT_MSG_TAG 543
-#define MPI_BACK_MESSAGE_TAG 1
-#define MPI_FRONT_MESSAGE_TAG 2
-
-#define NEIGHBOURS_CNT 8
+#define NEIGHBOURS_CNT 9
 
 void gatherAllStars(int numProcesses, nstars_info_t * myStars, nstars_info_t * allStars, int numAllStars) {
   if (allStars->n != numAllStars) {
@@ -56,6 +50,7 @@ static int initializeNeighbours(int * neighRanks, int * myGridId, int * gridSize
 
   int neighCnt = 0;
 
+  neighRanks[neighCnt++] = gridIdToRank(xId, yId, gridWidth); // send to myself
   if (xId > 0) {
     neighRanks[neighCnt++] = gridIdToRank(xId - 1, yId, gridWidth);
     if (yId > 0) {
@@ -80,8 +75,6 @@ static int initializeNeighbours(int * neighRanks, int * myGridId, int * gridSize
   if (yId < maxY) {
     neighRanks[neighCnt++] = gridIdToRank(xId, yId + 1, gridWidth);
   }
-
-  printf("initializeNeighbours on proc (%d, %d): neighCount: %d!\n", myGridId[0], myGridId[1], neighCnt);
   return neighCnt;
 }
 
@@ -93,7 +86,7 @@ void prepareOutCount(int numProcesses, int starsCnt, int * countOutData, int * m
   }
 
   memset(countOutData, 0, numProcesses * sizeof(int));   // initialize to 0
-  // send data to neigbours
+  // send data to neigbours (and myself)
   for (int neigh = 0; neigh < neighCnt; neigh++) {
     countOutData[neighRanks[neigh]] = starsCnt;
   }
