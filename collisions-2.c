@@ -17,6 +17,10 @@ MPI_Datatype MPI_STAR;
 
 #define NEIGHBOURS_CNT 9
 
+static inline int gridIdToRank(int myGridIdX, int myGridIdY, int gridSizeX) {
+  return myGridIdY * gridSizeX + myGridIdX;
+}
+
 void gatherAllStars(int numProcesses, nstars_info_t * myStars, nstars_info_t * allStars, int numAllStars) {
   if (allStars->n != numAllStars) {
     freeStars(allStars);

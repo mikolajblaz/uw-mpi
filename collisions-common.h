@@ -31,17 +31,6 @@ typedef struct nstars_info_s {
 
 extern MPI_Datatype MPI_STAR;
 
-// inline functions
-extern inline void rankToGridId(int myRank, int * myGridId, int gridSizeX);
-extern inline int gridIdToRank(int myGridIdX, int myGridIdY, int gridSizeX);
-// make world a torus (in terms of positions) along 1 (some) dimension
-extern inline float cyclePosition(float pos, float minPos, float maxPos, float worldSize);
-// who owns star inside the world along 1 (some) dimension in grid ids
-extern inline int whoOwnsStarInGridId(float pos, float minPos, float blockSize);
-// who (rank) owns star
-extern inline int whoOwnsStarInRank(float * position, float * minPosition, float * blockSize, int gridSizeX);
-
-
 /************************* API ********************************/
 void printUsage(char * progName);
 int parseArguments(int argc, char * argv[], int * gridSize, char ** filenameGal,

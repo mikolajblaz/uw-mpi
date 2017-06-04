@@ -23,6 +23,40 @@
 #define OPT_TOTAL "--total"
 #define OPT_MAX 8
 
+/************************* INLINES ********************************/
+// inline functions declared in collisions-helpers.h
+
+static inline void rankToGridId(int myRank, int * myGridId, int gridSizeX) {
+  // 3 4 5 --> (0,1) (1,1) (2,1)
+  // 0 1 2 --> (0,0) (1,0) (2,0)
+  myGridId[0] = myRank % gridSizeX;
+  myGridId[1] = myRank / gridSizeX;
+}
+
+static inline int gridIdToRank(int myGridIdX, int myGridIdY, int gridSizeX) {
+  return myGridIdY * gridSizeX + myGridIdX;
+}
+
+// make world a torus (in terms of positions) along 1 (some) dimension
+static inline float cyclePosition(float pos, float minPos, float maxPos, float worldSize) {
+  // works for (pos < minPos) too!
+  return (pos > maxPos || pos < minPos) ? (pos - floor((pos - minPos) / worldSize) * worldSize) : pos;
+}
+
+// who owns star inside the world along 1 (some) dimension in grid ids
+static inline int whoOwnsStarInGridId(float pos, float minPos, float blockSize) {
+  return (pos - minPos) / blockSize;
+}
+
+// who (rank) owns star
+static inline int whoOwnsStarInRank(float * position, float * minPosition, float * blockSize, int gridSizeX) {
+  return gridIdToRank(
+    whoOwnsStarInGridId(position[0], minPosition[0], blockSize[0]),
+    whoOwnsStarInGridId(position[1], minPosition[1], blockSize[1]),
+    gridSizeX
+  );
+}
+
 
 /************************* HELPERS ********************************/
 
@@ -150,42 +184,6 @@ void writeStarsToFile(nstars_info_t * stars, char * filename) {
 
   fclose(fp);
 }
-
-
-/************************* INLINES ********************************/
-// inline functions declared in collisions-helpers.h
-
-void rankToGridId(int myRank, int * myGridId, int gridSizeX) {
-  // 3 4 5 --> (0,1) (1,1) (2,1)
-  // 0 1 2 --> (0,0) (1,0) (2,0)
-  myGridId[0] = myRank % gridSizeX;
-  myGridId[1] = myRank / gridSizeX;
-}
-
-int gridIdToRank(int myGridIdX, int myGridIdY, int gridSizeX) {
-  return myGridIdY * gridSizeX + myGridIdX;
-}
-
-// make world a torus (in terms of positions) along 1 (some) dimension
-float cyclePosition(float pos, float minPos, float maxPos, float worldSize) {
-  // works for (pos < minPos) too!
-  return (pos > maxPos || pos < minPos) ? (pos - floor((pos - minPos) / worldSize) * worldSize) : pos;
-}
-
-// who owns star inside the world along 1 (some) dimension in grid ids
-int whoOwnsStarInGridId(float pos, float minPos, float blockSize) {
-  return (pos - minPos) / blockSize;
-}
-
-// who (rank) owns star
-int whoOwnsStarInRank(float * position, float * minPosition, float * blockSize, int gridSizeX) {
-  return gridIdToRank(
-    whoOwnsStarInGridId(position[0], minPosition[0], blockSize[0]),
-    whoOwnsStarInGridId(position[1], minPosition[1], blockSize[1]),
-    gridSizeX
-  );
-}
-
 
 /************************* API ********************************/
 
