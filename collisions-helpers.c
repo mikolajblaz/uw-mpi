@@ -145,7 +145,7 @@ int parseArguments(int argc, char * argv[], int * gridSize, char ** filenameGal,
 
 void initializeMpiStarType(MPI_Datatype * datatype) {
   MPI_Datatype type[2] = { MPI_FLOAT, MPI_INT };
-  int blocklen[2] = { 8, 1 };
+  int blocklen[2] = { 6, 1 };
   MPI_Aint disp[2];
   star_t starExample;
   disp[0] = (void*) &starExample.position[0] - (void*) &starExample;
@@ -256,8 +256,19 @@ void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, floa
   stars->stars = starsTmp;
 }
 
-void writeStarsToFile(nstars_info_t stars, char * filename) {
-  int n = stars.n;
+void sortAllStarsForPrinting(nstars_info_t * stars) {
+  int n = stars->n;
+  star_t * starsTmp = malloc(n * sizeof(star_t));
+  for (int i = 0; i < n; i++) {
+    starsTmp[stars->stars[i].index] = stars->stars[i];
+  }
+  freeStars(stars);
+  stars->stars = starsTmp;
+}
+
+void writeStarsToFile(nstars_info_t * stars, char * filename) {
+  sortAllStarsForPrinting(stars);
+  int n = stars->n;
   FILE * fp = fopen(filename, "w");
   if (fp == NULL) {
       fprintf(stderr, "ERROR: file \"%s\" could not be created!\n", filename);
@@ -265,8 +276,13 @@ void writeStarsToFile(nstars_info_t stars, char * filename) {
       exit(1);
   }
 
+  #ifdef DEBUG
   for (int i = 0; i < n; i++) {
-    fprintf(fp, "%.1f %.1f\n", stars.stars[i].position[0], stars.stars[i].position[1]);
+    fprintf(fp, "%d %.1f %.1f\n", stars->stars[i].index, stars->stars[i].position[0], stars->stars[i].position[1]);
+  }
+  #endif
+  for (int i = 0; i < n; i++) {
+    fprintf(fp, "%.1f %.1f\n", stars->stars[i].position[0], stars->stars[i].position[1]);
   }
 
   fclose(fp);

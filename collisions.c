@@ -17,20 +17,6 @@
 
 MPI_Datatype MPI_STAR;
 
-/* MPI signatures
-
-int MPI_Alltoallv(const void *sendbuf, const int sendcounts[],
-    const int sdispls[], MPI_Datatype sendtype,
-    void *recvbuf, const int recvcounts[],
-    const int rdispls[], MPI_Datatype recvtype, MPI_Comm comm)
-
-int MPI_Allgatherv(const void *sendbuf, int sendcount,
-    MPI_Datatype sendtype, void *recvbuf, const int recvcounts[],
-    const int displs[], MPI_Datatype recvtype, MPI_Comm comm)
-
-*/
-
-
 void distributeConfiguration(int myRank, int * numStars, float (*initVelocities)[2], float * mass) {
   float config[8];
   if (myRank == 0) {
@@ -98,6 +84,7 @@ void readInput(int numProcesses, int myRank, char ** filenameGal,
     for (galaxy = 0; galaxy < 2; galaxy++) {
       myStars[galaxy] = initStars(numStars[galaxy], galaxy);
       for (int i = 0; i < numStars[galaxy]; i++) {
+        myStars[galaxy].stars[i].index = i;
         ret = fscanf(fp[galaxy], "%f %f", &myStars[galaxy].stars[i].position[0], &myStars[galaxy].stars[i].position[1]);
         if (ret != 2) {
           fprintf(stderr, "ERROR while reading stars positions (line %d)!\n", i);
@@ -269,13 +256,13 @@ void gatherStars(int numProcesses, nstars_info_t * myStars, nstars_info_t * allS
   free(dispIn);
 }
 
-
 void computeCoordinates(nstars_info_t * myStars, nstars_info_t * allStars, float dt, float * masses, float * initVelocities,
                         float * minPosition, float * maxPosition, float * worldSize) {
   int n = myStars->n;
   int allN;
   int i,j;
   int gal;
+  const int myGal = myStars->galaxy;
   int index;
   float x, y;
   float distX, distY;
@@ -295,13 +282,13 @@ void computeCoordinates(nstars_info_t * myStars, nstars_info_t * allStars, float
       newA[gal][0] = 0;
       newA[gal][1] = 0;
       for (j = 0; j < allN; j++) {
-        if (index == allStars[gal].stars[j].index)  // not with myself
+        // TODO: optimize
+        if (myGal == gal && index == allStars[gal].stars[j].index)  // not with myself
           continue;
 
-        distX = allStars[gal].stars[j].position[0] - x;
+        distX = allStars[gal].stars[j].position[0] - x; // minus sign before F is here
         distY = allStars[gal].stars[j].position[1] - y;
         dist3 = distX * distX + distY * distY;
-        // TODO: if dist != 0
         if (dist3 == 0) {     // division by zero - danger!
           immobilize = true;
           break;
@@ -317,7 +304,7 @@ void computeCoordinates(nstars_info_t * myStars, nstars_info_t * allStars, float
     newA[0][0] += newA[1][0];     // sum from both galaxies
     newA[0][1] += newA[1][1];
 
-    if (newA[0][0] > MAX_NUM || newA[0][1] > MAX_NUM) {
+    if (newA[0][0] > MAX_NUM || newA[0][1] > MAX_NUM) { // force too big
       immobilize = true;
     }
 
@@ -345,14 +332,14 @@ void outputPositions(int myRank, nstars_info_t * myStars, int galaxy, int iter) 
   if (myRank == 0) {
     char filename[FILENAME_LENGTH];
     snprintf(filename, FILENAME_LENGTH, "res%d_%d.txt", galaxy + 1, iter);
-    writeStarsToFile(myStars[galaxy], filename);
+    writeStarsToFile(&myStars[galaxy], filename);
   }
 }
 
 void outputFinalPositions(int myRank, nstars_info_t * myStars) {
   if (myRank == 0) {
-    writeStarsToFile(myStars[0], "res1.txt");
-    writeStarsToFile(myStars[1], "res2.txt");
+    writeStarsToFile(&myStars[0], "res1.txt");
+    writeStarsToFile(&myStars[1], "res2.txt");
   }
 }
 
@@ -431,42 +418,46 @@ int main(int argc, char * argv[]) {
   /************************* COMPUTATION ********************************/
 
   iter = 0;
-  printStars(&myStars[0], myRank, -99);
-  printStars(&myStars[1], myRank, -99);
   exchangeStars(numProcesses, myRank, &myStars[0], minPosition, blockSize, gridSize[0]);
   exchangeStars(numProcesses, myRank, &myStars[1], minPosition, blockSize, gridSize[0]);
-  printStars(&myStars[0], myRank, -3);
-  printStars(&myStars[1], myRank, -3);
+
   // TODO: MPI_Bcast instead of gather stars
   gatherStars(numProcesses, &myStars[0], &allStars[0]);
   gatherStars(numProcesses, &myStars[1], &allStars[1]);
-  printStars(&allStars[0], myRank, -20);
-  printStars(&allStars[1], myRank, -20);
+
+  if (verbose) {
+    outputPositions(myRank, allStars, 0, 0);
+    outputPositions(myRank, allStars, 1, 0);
+    printStars(&myStars[0], myRank, 0);
+    printStars(&myStars[1], myRank, 0);
+  }
+
   computeCoordinates(&myStars[0], allStars, timeStep, masses, initVelocities[0], minPosition, maxPosition, worldSize);
   computeCoordinates(&myStars[1], allStars, timeStep, masses, initVelocities[1], minPosition, maxPosition, worldSize);
-  printStars(&myStars[0], myRank, -1);
-  printStars(&myStars[1], myRank, -1);
 
   iterNum = (int) (maxSimulationTime / timeStep);
   for (iter = 1; iter < iterNum; iter++) {
-    if (verbose) {
-      outputPositions(myRank, myStars, 0, iter - 1);
-      outputPositions(myRank, myStars, 1, iter - 1);
-      printStars(&myStars[0], myRank, iter - 1);
-      printStars(&myStars[1], myRank, iter - 1);
-    }
-
     exchangeStars(numProcesses, myRank, &myStars[0], minPosition, blockSize, gridSize[0]);
     exchangeStars(numProcesses, myRank, &myStars[1], minPosition, blockSize, gridSize[0]);
 
     gatherStars(numProcesses, &myStars[0], &allStars[0]);
     gatherStars(numProcesses, &myStars[1], &allStars[1]);
 
+    if (verbose) {
+      outputPositions(myRank, allStars, 0, iter);
+      outputPositions(myRank, allStars, 1, iter);
+      printStars(&myStars[0], myRank, iter);
+      printStars(&myStars[1], myRank, iter);
+    }
+
     computeCoordinates(&myStars[0], allStars, timeStep, masses, NULL, minPosition, maxPosition, worldSize);
     computeCoordinates(&myStars[1], allStars, timeStep, masses, NULL, minPosition, maxPosition, worldSize);
   }
 
-  outputFinalPositions(myRank, myStars);
+  gatherStars(numProcesses, &myStars[0], &allStars[0]);
+  gatherStars(numProcesses, &myStars[1], &allStars[1]);
+
+  outputFinalPositions(myRank, allStars);
 
   freeStars(&myStars[0]);
   freeStars(&myStars[1]);

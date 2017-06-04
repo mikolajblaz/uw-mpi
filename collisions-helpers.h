@@ -20,7 +20,6 @@ typedef struct star_s {
     float position[2];
     float velocity[2];
     float acceleration[2];
-    float newAcceleration[2];   // TODO remove
     int index;    // TODO: float?
 } star_t;
 
@@ -36,7 +35,7 @@ void countMinMax(star_t * stars, const int dim, const int size, float * min, flo
 void quicksort(int *A, int len);
 int parseArguments(int argc, char * argv[], int * gridSize, char ** filenameGal,
                    float * timeStep, float * maxSimulationTime, bool * verbose);
-void writeStarsToFile(nstars_info_t stars, char * filename);
+void writeStarsToFile(nstars_info_t * stars, char * filename);
 
 void printArray(char * name, int myRank, int * A, int size);
 void printArrayS(char * name, int myRank, star_t * A, int size);
