@@ -13,7 +13,7 @@
 
 #include <math.h>
 #include <stdbool.h>
-#include "collisions-helpers.h"
+#include "collisions-common.h"
 #include "collisions-optimizations.h"
 
 #ifdef OPTIMIZATION_1
