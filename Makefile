@@ -8,7 +8,7 @@ OBJS        := collisions-common.o
 HEADERS     := collisions-common.h
 EXEC        := collisions-1 collisions-2 collisions-3
 ALL         := $(EXEC)
-TESTDIR     := myoff2
+TESTDIR     := my3
 
 all : $(ALL)
 
@@ -28,9 +28,5 @@ clean :
 	rm -f *.o *.out *.err $(ALL)
 
 test: all
-	mkdir -p tmp
-	cp tests/$(TESTDIR)/gal* tmp
-	cd tmp && \
-	time mpirun -np 4 ../collisions-3 -v --hor 2 --ver 2 --gal1 gal1.txt --gal2 gal2.txt --delta 0.1 --total 1.0
-	diff -r tmp tests/$(TESTDIR)
-	echo -e "\n    OK!\n"
+	cp tests/$(TESTDIR)/gal* .
+	./test.sh
