@@ -12,11 +12,6 @@
 #define FILENAME_LENGTH 20
 #define MAX_NUM (FLT_MAX / 2)
 
-// TODO
-#define PRINT_MSG_TAG 543
-#define MPI_BACK_MESSAGE_TAG 1
-#define MPI_FRONT_MESSAGE_TAG 2
-
 #define FAIL_IF_NULL(ptr) if ((ptr) == NULL) \
   { fprintf(stderr, "ERROR [%s, line %d]: couldn't allocate memory!\n", __FILE__, __LINE__); MPI_Finalize(); exit(1); }
 

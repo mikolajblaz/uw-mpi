@@ -176,19 +176,6 @@ void computeWorldSize(int numProcesses, int myRank, int * gridSize, float * minP
   #endif
 }
 
-void exchangeCountData(int numProcesses, int * countOutData, int * countInData, int * sum) {
-  //printArray("countOutData", myRank, countOutData, numProcesses);
-  MPI_Alltoall(countOutData, 1, MPI_INT,
-               countInData, 1, MPI_INT, MPI_COMM_WORLD);
-  // TODO in place?
-  //printArray("countInData", myRank, countInData, numProcesses);
-  int lsum = 0;
-  for (int i = 0; i < numProcesses; i++) {
-    lsum += countInData[i];
-  }
-  *sum = lsum;
-}
-
 void exchangeStars(int numProcesses, int myRank, nstars_info_t * myStars, float * minPosition, float * blockSize, int gridSizeX) {
   int sumInData;
 
@@ -203,10 +190,17 @@ void exchangeStars(int numProcesses, int myRank, nstars_info_t * myStars, float 
 
   sortStars(numProcesses, myStars, countOutData, minPosition, blockSize, gridSizeX, myRank);
 
-  exchangeCountData(numProcesses, countOutData, countInData, &sumInData);
+  MPI_Alltoall(countOutData, 1, MPI_INT,
+               countInData, 1, MPI_INT, MPI_COMM_WORLD);
+  // TODO in place?
+
   calculateDisplacements(countOutData, dispOut, numProcesses);
   calculateDisplacements(countInData, dispIn, numProcesses);
 
+  sumInData = 0;
+  for (int i = 0; i < numProcesses; i++) {
+    sumInData += countInData[i];
+  }
   // printf("sumInData(%d): %d\n", myRank, sumInData);
   star_t * starsTmp = malloc(sumInData * sizeof(star_t));
   FAIL_IF_NULL(starsTmp);
@@ -367,7 +361,7 @@ int main(int argc, char * argv[]) {
   }
 
   // Here arguments are correct
-  
+
   readInput(numProcesses, myRank, filenameGal, numStars, initVelocities, masses, myStars);
   // now everyone has filled and initialized: numStars, initVelocities, masses, myStars
   // process 0 has all stars
@@ -394,8 +388,8 @@ int main(int argc, char * argv[]) {
   exchangeStars(numProcesses, myRank, &myStars[1], minPosition, blockSize, gridSize[0]);  // gridSize[0]!
 
   // TODO: MPI_Bcast instead of gather stars
-  gatherStars(numProcesses, &myStars[0], &allStars[0]);
-  gatherStars(numProcesses, &myStars[1], &allStars[1]);
+  gatherStars(numProcesses, &myStars[0], &allStars[0], myGridId, gridSize);
+  gatherStars(numProcesses, &myStars[1], &allStars[1], myGridId, gridSize);
 
   if (verbose) {
     outputPositions(myRank, allStars, 0, 0);
@@ -407,11 +401,12 @@ int main(int argc, char * argv[]) {
 
   iterNum = (int) (maxSimulationTime / timeStep);
   for (iter = 1; iter < iterNum; iter++) {
+    // TODO: asynch
     exchangeStars(numProcesses, myRank, &myStars[0], minPosition, blockSize, gridSize[0]);
     exchangeStars(numProcesses, myRank, &myStars[1], minPosition, blockSize, gridSize[0]);  // gridSize[0]!
 
-    gatherStars(numProcesses, &myStars[0], &allStars[0]);
-    gatherStars(numProcesses, &myStars[1], &allStars[1]);
+    gatherStars(numProcesses, &myStars[0], &allStars[0], myGridId, gridSize);
+    gatherStars(numProcesses, &myStars[1], &allStars[1], myGridId, gridSize);
 
     if (verbose) {
       outputPositions(myRank, allStars, 0, iter);
@@ -422,8 +417,9 @@ int main(int argc, char * argv[]) {
     computeCoordinates(&myStars[1], allStars, timeStep, masses, NULL, minPosition, maxPosition, worldSize);
   }
 
-  gatherStars(numProcesses, &myStars[0], &allStars[0]);
-  gatherStars(numProcesses, &myStars[1], &allStars[1]);
+  gatherStars(numProcesses, &myStars[0], &allStars[0], myGridId, gridSize);
+  gatherStars(numProcesses, &myStars[1], &allStars[1], myGridId, gridSize);
+  // TODO: gather all stars!
 
   outputFinalPositions(myRank, allStars);
 

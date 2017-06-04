@@ -8,7 +8,7 @@ OBJS        := collisions.o collisions-helpers.o
 HEADERS     := collisions-helpers.h collisions-optimizations.h
 EXEC        := collisions-1 collisions-2 collisions-3
 ALL         := $(EXEC)
-TESTDIR     := myoff2
+TESTDIR     := myoff1
 
 all : $(ALL)
 
@@ -41,5 +41,9 @@ test: all
 	cp tests/$(TESTDIR)/gal* tmp
 	cd tmp && \
 	mpirun -np 10 ../collisions-1 -v --hor 5 --ver 2 --gal1 gal1.txt --gal2 gal2.txt --delta 0.1 --total 1.0
+	diff -r tmp tests/$(TESTDIR)
+	echo -e "\n    OK!\n"
+	cd tmp && \
+	mpirun -np 6 ../collisions-2 -v --hor 3 --ver 2 --gal1 gal1.txt --gal2 gal2.txt --delta 0.1 --total 1.0
 	diff -r tmp tests/$(TESTDIR)
 	echo -e "\n    OK!\n"

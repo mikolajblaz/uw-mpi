@@ -198,13 +198,7 @@ void printArrayS(char * name, int myRank, star_t * A, int size) {
 
 // perform counting sort to sort stars
 void sortStars(int numProcesses, nstars_info_t * stars, int * countOutData, float * minPosition, float * blockSize, int gridSizeX, int myRank) {
-  // HEAD
-  //memset(countOutData, 0, numProcesses * sizeof(int));
-  // TODO memeset
-
-  for (int i = 0; i < numProcesses; i++) {
-    countOutData[i] = 0;
-  }
+  memset(countOutData, 0, numProcesses * sizeof(int));
 
   const int n = stars->n;
   if (n == 0)
