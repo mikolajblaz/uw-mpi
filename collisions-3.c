@@ -21,43 +21,23 @@ static inline int myStarsCount(int numProcesses, int myRank, int numAllStars) {
   return (myRank >= numInc ? numBase : (numBase + 1));
 }
 
-void gatherAllStars(int numProcesses, nstars_info_t * myStars, nstars_info_t * allStars) {
+void gatherAllStars(int numProcesses, nstars_info_t * myStars, nstars_info_t * allStars, int * countInData, int * dispIn) {
   int n = myStars->n;
-  int * countInData = malloc(numProcesses * sizeof(int));
-  FAIL_IF_NULL(countInData);
-  int * dispIn = malloc(numProcesses * sizeof(int));
-  FAIL_IF_NULL(dispIn);
-
-  MPI_Allgather(&n, 1, MPI_INT,
-                countInData, 1, MPI_INT, MPI_COMM_WORLD);
-
-  calculateDisplacements(countInData, dispIn, numProcesses);
-
   MPI_Allgatherv(myStars->stars, n, MPI_STAR,
                  allStars->stars, countInData, dispIn, MPI_STAR, MPI_COMM_WORLD);
-
-  free(countInData);
-  free(dispIn);
 }
 
 
-void distributeStars(nstars_info_t * myStars, int numProcesses, int myRank, int numAllStars) {
-  int myStarsCnt = myStarsCount(numProcesses, myRank, numAllStars);
-  int * countOutData = NULL;
-  int * dispOut = NULL;
-
-  if (myRank == 0) {
-    // how much data should be sent to each process
-    countOutData = malloc(numProcesses * sizeof(int));
-    FAIL_IF_NULL(countOutData);
-    dispOut = malloc(numProcesses * sizeof(int));
-    FAIL_IF_NULL(dispOut);
-
-    for (int i = 0; i < numProcesses; i++) {
-      countOutData[i] = myStarsCount(numProcesses, i, numAllStars);
-    }
-    calculateDisplacements(countOutData, dispOut, numProcesses);
+void calculateProcessorCounts(int * processorCounts, int numProcesses, int myRank, int numAllStars) {
+  for (int i = 0; i < numProcesses; i++) {
+    processorCounts[i] = myStarsCount(numProcesses, i, numAllStars);
   }
+}
+
+void distributeStars(nstars_info_t * myStars, int numProcesses, int myRank, int * processorCounts, int * processorDisps) {
+  int myStarsCnt = processorCounts[myRank];
+  int * countOutData = processorCounts;
+  int * dispOut = processorDisps;
 
   star_t * starsTmp = malloc(myStarsCnt * sizeof(star_t));
   FAIL_IF_NULL(starsTmp);
@@ -65,13 +45,9 @@ void distributeStars(nstars_info_t * myStars, int numProcesses, int myRank, int 
   MPI_Scatterv(myStars->stars, countOutData, dispOut, MPI_STAR,
                starsTmp, myStarsCnt, MPI_STAR, 0, MPI_COMM_WORLD);
 
-  free(countOutData);
-  free(dispOut);
-
   freeStars(myStars);
   myStars->n = myStarsCnt;
   myStars->stars = starsTmp;
-
 }
 
 
@@ -137,15 +113,28 @@ int main(int argc, char * argv[]) {
 
   /************************* COMPUTATION ********************************/
 
-  distributeStars(&myStars[0], numProcesses, myRank, numStars[0]);
-  distributeStars(&myStars[1], numProcesses, myRank, numStars[1]);
+  // who owns how many stars
+  int * (processorCounts[2]);
+  int * (processorDisps[2]);
+  for (int dim = 0; dim < 2; dim++) {
+    processorCounts[dim] = malloc(numProcesses * sizeof(int));
+    FAIL_IF_NULL(processorCounts[dim]);
+    processorDisps[dim] = malloc(numProcesses * sizeof(int));
+    FAIL_IF_NULL(processorDisps[dim]);
+
+    calculateProcessorCounts(processorCounts[dim], numProcesses, myRank, numStars[dim]);
+    calculateDisplacements(processorCounts[dim], processorDisps[dim], numProcesses);
+    distributeStars(&myStars[dim], numProcesses, myRank, processorCounts[dim], processorDisps[dim]);
+  }
+
+  // now all stars are distributed, continue computation like in 1 and 2, except from 'exchangeStars' step
 
   iterNum = (int) (maxSimulationTime / timeStep);
   for (iter = 0; iter < iterNum; iter++){
     // here we don't exchange stars between processors, just gather them
 
-    gatherAllStars(numProcesses, &myStars[0], &allStars[0]);
-    gatherAllStars(numProcesses, &myStars[1], &allStars[1]);
+    gatherAllStars(numProcesses, &myStars[0], &allStars[0], processorCounts[0], processorDisps[0]);
+    gatherAllStars(numProcesses, &myStars[1], &allStars[1], processorCounts[1], processorDisps[1]);
 
     if (verbose) {
       outputPositions(myRank, allStars, 0, iter);
@@ -156,14 +145,16 @@ int main(int argc, char * argv[]) {
     computeCoordinates(&myStars[1], allStars, timeStep, masses, (iter == 0 ? initVelocities[1] : NULL), minPosition, maxPosition, worldSize);
   }
 
-  gatherAllStars(numProcesses, &myStars[0], &allStars[0]);
-  gatherAllStars(numProcesses, &myStars[1], &allStars[1]);
+  gatherAllStars(numProcesses, &myStars[0], &allStars[0], processorCounts[0], processorDisps[0]);
+  gatherAllStars(numProcesses, &myStars[1], &allStars[1], processorCounts[1], processorDisps[1]);
   outputFinalPositions(myRank, allStars);
 
-  freeStars(&myStars[0]);
-  freeStars(&myStars[1]);
-  freeStars(&allStars[0]);
-  freeStars(&allStars[1]);
+  for (int dim = 0; dim < 2; dim++) {
+    freeStars(&myStars[dim]);
+    freeStars(&allStars[dim]);
+    free(processorCounts[dim]);
+    free(processorDisps[dim]);
+  }
 
   MPI_Finalize();
   return 0;
