@@ -14,9 +14,27 @@
 #include <math.h>
 #include <stdbool.h>
 #include "collisions-common.h"
-#include "collisions-optimizations.h"
 
 MPI_Datatype MPI_STAR;
+
+void gatherAllStars(int numProcesses, nstars_info_t * myStars, nstars_info_t * allStars) {
+  int n = myStars->n;
+  int * countInData = malloc(numProcesses * sizeof(int));
+  FAIL_IF_NULL(countInData);
+  int * dispIn = malloc(numProcesses * sizeof(int));
+  FAIL_IF_NULL(dispIn);
+
+  MPI_Allgather(&n, 1, MPI_INT,
+                countInData, 1, MPI_INT, MPI_COMM_WORLD);
+
+  calculateDisplacements(countInData, dispIn, numProcesses);
+
+  MPI_Allgatherv(myStars->stars, n, MPI_STAR,
+                 allStars->stars, countInData, dispIn, MPI_STAR, MPI_COMM_WORLD);
+
+  free(countInData);
+  free(dispIn);
+}
 
 int main(int argc, char * argv[]) {
   // stars
@@ -88,8 +106,8 @@ int main(int argc, char * argv[]) {
     exchangeStars(numProcesses, myRank, &myStars[1], minPosition, blockSize, gridSize[0]);  // gridSize[0]!
 
     // TODO: MPI_Bcast instead of gather stars
-    gatherStars(numProcesses, &myStars[0], &allStars[0], myGridId, gridSize);
-    gatherStars(numProcesses, &myStars[1], &allStars[1], myGridId, gridSize);
+    gatherAllStars(numProcesses, &myStars[0], &allStars[0]);
+    gatherAllStars(numProcesses, &myStars[1], &allStars[1]);
 
     if (verbose) {
       outputPositions(myRank, allStars, 0, iter);
@@ -100,9 +118,8 @@ int main(int argc, char * argv[]) {
     computeCoordinates(&myStars[1], allStars, timeStep, masses, (iter == 0 ? initVelocities[1] : NULL), minPosition, maxPosition, worldSize);
   }
 
-  gatherStars(numProcesses, &myStars[0], &allStars[0], myGridId, gridSize);
-  gatherStars(numProcesses, &myStars[1], &allStars[1], myGridId, gridSize);
-  // TODO: gather all stars!
+  gatherAllStars(numProcesses, &myStars[0], &allStars[0]);
+  gatherAllStars(numProcesses, &myStars[1], &allStars[1]);
   outputFinalPositions(myRank, allStars);
 
   freeStars(&myStars[0]);

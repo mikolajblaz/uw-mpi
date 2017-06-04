@@ -4,31 +4,22 @@
 CC          := mpicc
 CFLAGS      := -O3 -c -Wall -std=c99
 LFLAGS      := -O3 -std=c99
-OBJS        := collisions.o collisions-common.o
-HEADERS     := collisions-common.h collisions-optimizations.h
-EXEC        := collisions-1 # collisions-2 collisions-3
+OBJS        := collisions-common.o
+HEADERS     := collisions-common.h
+EXEC        := collisions-1 collisions-2 collisions-3
 ALL         := $(EXEC)
 TESTDIR     := myoff2
 
 all : $(ALL)
 
-collisions-1: collisions-optimizations1.o $(OBJS)
+collisions-1: collisions-1.o $(OBJS)
 	$(CC) $(LFLAGS) -o $@ $^ -lm
 
-collisions-2: collisions-optimizations2.o $(OBJS)
+collisions-2: collisions-2.o $(OBJS)
 	$(CC) $(LFLAGS) -o $@ $^ -lm
 
-collisions-3: collisions-optimizations3.o $(OBJS)
+collisions-3: collisions-3.o $(OBJS)
 	$(CC) $(LFLAGS) -o $@ $^ -lm
-
-collisions-optimizations1.o: collisions-optimizations.c $(HEADERS)
-	$(CC) $(CFLAGS) -DOPTIMIZATION_1 -o collisions-optimizations1.o $<
-
-collisions-optimizations2.o: collisions-optimizations.c $(HEADERS)
-	$(CC) $(CFLAGS) -DOPTIMIZATION_2 -o collisions-optimizations2.o $<
-
-collisions-optimizations3.o: collisions-optimizations.c $(HEADERS)
-	$(CC) $(CFLAGS) -DOPTIMIZATION_3 -o collisions-optimizations3.o $<
 
 %.o : %.c $(HEADERS)
 	$(CC) $(CFLAGS) $<
