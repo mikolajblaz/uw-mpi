@@ -585,6 +585,10 @@ void computeCoordinates(nstars_info_t * myStars, nstars_info_t * allStars, const
       myStars->stars[i].position[0] = cyclePosition(myStars->stars[i].position[0], minPosition[0], maxPosition[0], worldSize[0]);
       myStars->stars[i].position[1] += myStars->stars[i].velocity[1] * dt + newA[0][1] * dt * dt / 2;
       myStars->stars[i].position[1] = cyclePosition(myStars->stars[i].position[1], minPosition[1], maxPosition[1], worldSize[1]);
+
+    } else { // do not move star
+      myStars->stars[i].velocity[0] = 0;
+      myStars->stars[i].velocity[1] = 0;
     }
   }
 }
