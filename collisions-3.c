@@ -122,6 +122,7 @@ int main(int argc, char * argv[]) {
     processorDisps[dim] = malloc(numProcesses * sizeof(int));
     FAIL_IF_NULL(processorDisps[dim]);
 
+    // how many stars on each processor
     calculateProcessorCounts(processorCounts[dim], numProcesses, myRank, numStars[dim]);
     calculateDisplacements(processorCounts[dim], processorDisps[dim], numProcesses);
     distributeStars(&myStars[dim], numProcesses, myRank, processorCounts[dim], processorDisps[dim]);

@@ -8,7 +8,6 @@ OBJS        := collisions-common.o
 HEADERS     := collisions-common.h
 EXEC        := collisions-1 collisions-2 collisions-3
 ALL         := $(EXEC)
-TESTDIR     := my3
 
 all : $(ALL)
 
@@ -26,7 +25,3 @@ collisions-3: collisions-3.o $(OBJS)
 
 clean :
 	rm -f *.o *.out *.err $(ALL)
-
-test: all
-	cp tests/$(TESTDIR)/gal* .
-	./test.sh
